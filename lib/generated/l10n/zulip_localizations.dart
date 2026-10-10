@@ -2112,6 +2112,24 @@ abstract class ZulipLocalizations {
   /// **'Unpinned'**
   String get unpinnedSubscriptionsLabel;
 
+  /// Label for a button in the list of subscribed channels, in a section that has both inactive and muted channels. The button shows or hides those channels; the number is how many there are.
+  ///
+  /// In en, this message translates to:
+  /// **'{num} inactive or muted'**
+  String subscriptionListInactiveOrMutedChannels(int num);
+
+  /// Label for a button in the list of subscribed channels, in a section that has muted channels. The button shows or hides those channels; the number is how many there are.
+  ///
+  /// In en, this message translates to:
+  /// **'{num} muted'**
+  String subscriptionListMutedChannels(int num);
+
+  /// Label for a button in the list of subscribed channels, in a section that has inactive channels. The button shows or hides those channels; the number is how many there are.
+  ///
+  /// In en, this message translates to:
+  /// **'{num} inactive'**
+  String subscriptionListInactiveChannels(int num);
+
   /// Display name for the user themself, to show after replying in an Android notification
   ///
   /// In en, this message translates to:

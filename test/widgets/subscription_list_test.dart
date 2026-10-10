@@ -7,6 +7,7 @@ import 'package:zulip/api/model/events.dart';
 import 'package:zulip/api/model/initial_snapshot.dart';
 import 'package:zulip/api/model/model.dart';
 import 'package:zulip/model/store.dart';
+import 'package:zulip/model/subscription_list.dart';
 import 'package:zulip/widgets/color.dart';
 import 'package:zulip/widgets/home.dart';
 import 'package:zulip/widgets/icons.dart';
@@ -17,6 +18,7 @@ import 'package:zulip/widgets/counter_badge.dart';
 
 import '../flutter_checks.dart';
 import '../model/binding.dart';
+import '../model/test_store.dart';
 import '../example_data.dart' as eg;
 import 'test_app.dart';
 
@@ -366,6 +368,8 @@ void main() {
   });
 
   group('channel folders', () {
+    final folder0 = eg.channelFolder(name: 'Zero', order: 0);
+
     List<String> folderHeaderLabels(WidgetTester tester) => tester
       .widgetList<SubscriptionListFolderHeader>(find.byType(SubscriptionListFolderHeader))
       .map((e) => e.label).toList();
@@ -466,6 +470,70 @@ void main() {
       check(folderHeaderLabels(tester)).deepEquals(['Uno', 'Other channels']);
     });
 
+    testWidgets('mute and pin changes: update live', (tester) async {
+      final channel1 = eg.stream(streamId: 1, folderId: folder0.id);
+      await setupStreamListPage(tester,
+        webLeftSidebarShowChannelFolders: true,
+        demoteInactiveStreams: .never,
+        channelFolders: [folder0],
+        subscriptions: [
+          eg.subscription(channel1),
+          eg.subscription(eg.stream(streamId: 2, folderId: folder0.id)),
+        ]);
+      check(listedStreamIds(tester)).deepEquals([1, 2]);
+
+      await store.handleEvent(SubscriptionUpdateEvent(id: 1,
+        channelId: channel1.streamId,
+        property: SubscriptionProperty.isMuted, value: true));
+      await tester.pump();
+      check(listedStreamIds(tester)).deepEquals([2]);
+      check(find.widgetWithText(SubscriptionListHiddenChannelsToggle, '1 muted')).findsOne();
+
+      await store.handleEvent(SubscriptionUpdateEvent(id: 2,
+        channelId: channel1.streamId,
+        property: SubscriptionProperty.pinToTop, value: true));
+      await tester.pump();
+      check(folderHeaderLabels(tester)).deepEquals(['Pinned channels', 'Zero']);
+      check(find.byType(SubscriptionListHiddenChannelsToggle)).findsNothing();
+    });
+
+    testWidgets('channel becoming inactive: update live', (tester) async {
+      final channel1 = eg.stream(streamId: 1, folderId: folder0.id);
+      await setupStreamListPage(tester,
+        webLeftSidebarShowChannelFolders: true,
+        demoteInactiveStreams: .always,
+        channelFolders: [folder0],
+        subscriptions: [
+          eg.subscription(channel1),
+          eg.subscription(eg.stream(streamId: 2, folderId: folder0.id)),
+        ]);
+      check(listedStreamIds(tester)).deepEquals([1, 2]);
+
+      await store.handleEvent(eg.channelUpdateEvent(channel1,
+        property: ChannelPropertyName.isRecentlyActive, value: false));
+      await tester.pump();
+      check(listedStreamIds(tester)).deepEquals([2]);
+      check(find.widgetWithText(SubscriptionListHiddenChannelsToggle, '1 inactive')).findsOne();
+    });
+
+    testWidgets('demote setting changed: update live', (tester) async {
+      await setupStreamListPage(tester,
+        webLeftSidebarShowChannelFolders: true,
+        demoteInactiveStreams: .never,
+        channelFolders: [folder0],
+        subscriptions: [
+          eg.subscription(eg.stream(streamId: 1, folderId: folder0.id, isRecentlyActive: false)),
+          eg.subscription(eg.stream(streamId: 2, folderId: folder0.id)),
+        ]);
+      check(listedStreamIds(tester)).deepEquals([1, 2]);
+
+      await store.handleEvent(UserSettingsUpdateEvent(id: 1,
+        property: UserSettingName.demoteInactiveStreams,
+        value: DemoteInactiveStreamsSetting.always));
+      await tester.pump();
+      check(listedStreamIds(tester)).deepEquals([2]);
+    });
+
     testWidgets('setting toggled: update live', (tester) async {
       final folder = eg.channelFolder(name: 'Zebra');
       await setupStreamListPage(tester,
@@ -486,6 +554,212 @@ void main() {
         value: true));
       await tester.pump();
       check(folderHeaderLabels(tester)).deepEquals(['Zebra']);
+    });
+  });
+
+  group('inactive and muted channels', () {
+    Future<void> prepare(WidgetTester tester, {
+      required List<Subscription> subscriptions,
+      UnreadMessagesSnapshot? unreadMsgs,
+      List<UserTopicItem> userTopics = const [],
+    }) async {
+      await setupStreamListPage(tester,
+        webLeftSidebarShowChannelFolders: true,
+        demoteInactiveStreams: .always,
+        subscriptions: subscriptions,
+        unreadMsgs: unreadMsgs,
+        userTopics: userTopics);
+    }
+
+    Finder findToggle() => find.byType(SubscriptionListHiddenChannelsToggle);
+
+    testWidgets('muted channels hidden behind toggle', (tester) async {
+      await prepare(tester, subscriptions: [
+        eg.subscription(eg.stream(streamId: 1, name: 'a')),
+        eg.subscription(eg.stream(streamId: 2, name: 'b'), isMuted: true),
+        eg.subscription(eg.stream(streamId: 3, name: 'c')),
+      ]);
+      check(listedStreamIds(tester)).deepEquals([1, 3]);
+      check(find.widgetWithText(SubscriptionListHiddenChannelsToggle, '1 muted')).findsOne();
+
+      await tester.tap(findToggle());
+      await tester.pump();
+      check(listedStreamIds(tester)).deepEquals([1, 3, 2]);
+      check(findToggle()).findsOne();
+
+      await tester.tap(findToggle());
+      await tester.pump();
+      check(listedStreamIds(tester)).deepEquals([1, 3]);
+    });
+
+    testWidgets('inactive channels hidden behind toggle', (tester) async {
+      await prepare(tester, subscriptions: [
+        eg.subscription(eg.stream(streamId: 1, name: 'a', isRecentlyActive: false)),
+        eg.subscription(eg.stream(streamId: 2, name: 'b', isRecentlyActive: false)),
+        eg.subscription(eg.stream(streamId: 3, name: 'c')),
+      ]);
+      check(listedStreamIds(tester)).deepEquals([3]);
+      check(find.widgetWithText(SubscriptionListHiddenChannelsToggle, '2 inactive')).findsOne();
+
+      await tester.tap(findToggle());
+      await tester.pump();
+      check(listedStreamIds(tester)).deepEquals([3, 1, 2]);
+    });
+
+    testWidgets('both kinds: muted listed before inactive', (tester) async {
+      await prepare(tester, subscriptions: [
+        eg.subscription(eg.stream(streamId: 1, name: 'a', isRecentlyActive: false)),
+        eg.subscription(eg.stream(streamId: 2, name: 'b'), isMuted: true),
+        eg.subscription(eg.stream(streamId: 3, name: 'c')),
+      ]);
+      check(find.widgetWithText(SubscriptionListHiddenChannelsToggle, '2 inactive or muted')).findsOne();
+
+      await tester.tap(findToggle());
+      await tester.pump();
+      check(listedStreamIds(tester)).deepEquals([3, 2, 1]);
+    });
+
+    testWidgets('pinned muted channels are never hidden', (tester) async {
+      await prepare(tester, subscriptions: [
+        eg.subscription(eg.stream(streamId: 1, name: 'a'), pinToTop: true, isMuted: true),
+        eg.subscription(eg.stream(streamId: 2, name: 'b'), pinToTop: true),
+      ]);
+      check(listedStreamIds(tester)).deepEquals([2, 1]);
+      check(findToggle()).findsNothing();
+    });
+
+    testWidgets('toggle shows unread badge of hidden channels while hidden', (tester) async {
+      final mutedChannel = eg.stream(name: 'a');
+      final inactiveChannel = eg.stream(name: 'b', isRecentlyActive: false);
+      await prepare(tester,
+        subscriptions: [
+          eg.subscription(mutedChannel, isMuted: true),
+          eg.subscription(inactiveChannel),
+        ],
+        userTopics: [
+          eg.userTopicItem(mutedChannel, 'x', UserTopicVisibilityPolicy.unmuted),
+        ],
+        unreadMsgs: eg.unreadMsgs(channels: [
+          eg.unreadChannelMsgs(streamId: mutedChannel.streamId, topic: 'x', unreadMessageIds: [1, 2]),
+          eg.unreadChannelMsgs(streamId: inactiveChannel.streamId, topic: 'y', unreadMessageIds: [3]),
+        ]));
+      check(find.descendant(of: findToggle(), matching: find.byType(CounterBadge)))
+        .findsOne();
+      check(find.descendant(of: findToggle(), matching: find.text('3')))
+        .findsOne();
+
+      await tester.tap(findToggle());
+      await tester.pump();
+      check(find.descendant(of: findToggle(), matching: find.byType(CounterBadge)))
+        .findsNothing();
+    });
+
+    testWidgets('toggle shows muted unread badge when hidden channels have only muted unreads', (tester) async {
+      final mutedChannel = eg.stream();
+      await prepare(tester,
+        subscriptions: [eg.subscription(mutedChannel, isMuted: true)],
+        userTopics: [
+          eg.userTopicItem(mutedChannel, 'x', UserTopicVisibilityPolicy.none),
+        ],
+        unreadMsgs: eg.unreadMsgs(channels: [
+          eg.unreadChannelMsgs(streamId: mutedChannel.streamId, topic: 'x', unreadMessageIds: [1]),
+        ]));
+      check(find.descendant(of: findToggle(), matching: find.byType(CounterBadge)))
+        .findsNothing();
+      check(find.descendant(of: findToggle(), matching: find.byType(MutedUnreadBadge)))
+        .findsOne();
+    });
+
+    testWidgets('toggle unread badge updates live', (tester) async {
+      final mutedChannel = eg.stream(name: 'a');
+      await prepare(tester,
+        subscriptions: [
+          eg.subscription(eg.stream(name: 'b')),
+          eg.subscription(mutedChannel, isMuted: true),
+        ],
+        userTopics: [
+          eg.userTopicItem(mutedChannel, 'x', UserTopicVisibilityPolicy.unmuted),
+        ],
+        unreadMsgs: eg.unreadMsgs(channels: [
+          eg.unreadChannelMsgs(streamId: mutedChannel.streamId, topic: 'x', unreadMessageIds: [1]),
+        ]));
+      check(find.descendant(of: findToggle(), matching: find.text('1')))
+        .findsOne();
+
+      await store.addMessage(
+        eg.streamMessage(stream: mutedChannel, topic: 'x', flags: []));
+      await tester.pump();
+      check(find.descendant(of: findToggle(), matching: find.text('2')))
+        .findsOne();
+    });
+
+    testWidgets('crossing the subscription threshold: update live', (tester) async {
+      final inactiveChannel = eg.stream(name: 'a', isRecentlyActive: false);
+      await setupStreamListPage(tester,
+        webLeftSidebarShowChannelFolders: true,
+        demoteInactiveStreams: .automatic,
+        subscriptions: [
+          eg.subscription(inactiveChannel),
+          for (int i = 2; i < kDemoteInactiveChannelsThreshold; i++)
+            eg.subscription(eg.stream()),
+        ]);
+      check(store.subscriptions).length.equals(kDemoteInactiveChannelsThreshold - 1);
+      check(listedStreamIds(tester)).contains(inactiveChannel.streamId);
+
+      final newChannel = eg.stream();
+      await store.addStream(newChannel);
+      await store.addSubscription(eg.subscription(newChannel));
+      await tester.pump();
+      check(listedStreamIds(tester)).not((it) => it.contains(inactiveChannel.streamId));
+
+      await store.removeSubscription(newChannel.streamId);
+      await tester.pump();
+      check(listedStreamIds(tester)).contains(inactiveChannel.streamId);
+    });
+
+    testWidgets('setting off: no toggle, muted listed last', (tester) async {
+      await setupStreamListPage(tester,
+        webLeftSidebarShowChannelFolders: false,
+        demoteInactiveStreams: .always,
+        subscriptions: [
+          eg.subscription(eg.stream(streamId: 1, name: 'a'), isMuted: true),
+          eg.subscription(eg.stream(streamId: 2, name: 'b', isRecentlyActive: false)),
+        ]);
+      check(findToggle()).findsNothing();
+      check(listedStreamIds(tester)).deepEquals([2, 1]);
+    });
+
+    testWidgets('share page: only channels the user can send to', (tester) async {
+      addTearDown(testBinding.reset);
+      final folder1 = eg.channelFolder(name: 'One', order: 0);
+      final folder2 = eg.channelFolder(name: 'Two', order: 1);
+      final cantSendGroup = eg.groupSetting(members: []);
+      final subscriptions = [
+        eg.subscription(eg.stream(streamId: 1, folderId: folder1.id)),
+        eg.subscription(isMuted: true,
+          eg.stream(streamId: 2, folderId: folder1.id)),
+        eg.subscription(isMuted: true,
+          eg.stream(streamId: 3, folderId: folder1.id, canSendMessageGroup: cantSendGroup)),
+        eg.subscription(
+          eg.stream(streamId: 4, folderId: folder2.id, canSendMessageGroup: cantSendGroup)),
+      ];
+      await testBinding.globalStore.add(eg.selfAccount, eg.initialSnapshot(
+        subscriptions: subscriptions,
+        streams: subscriptions,
+        channelFolders: [folder1, folder2],
+        userSettings: eg.userSettings(webLeftSidebarShowChannelFolders: true)));
+      await tester.pumpWidget(TestZulipApp(accountId: eg.selfAccount.id,
+        child: SubscriptionListPageBody(
+          hideChannelsIfUserCantSendMessage: true,
+          onChannelSelect: (_) {})));
+      // global store, per-account store
+      await tester.pump();
+      await tester.pump();
+
+      check(find.text('ONE')).findsOne();
+      check(find.text('TWO')).findsNothing();
+      check(find.widgetWithText(SubscriptionListHiddenChannelsToggle, '1 muted')).findsOne();
+      check(listedStreamIds(tester)).deepEquals([1]);
     });
   });
 }

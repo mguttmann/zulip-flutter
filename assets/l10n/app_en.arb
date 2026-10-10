@@ -1448,6 +1448,27 @@
   "@unpinnedSubscriptionsLabel": {
     "description": "Label for the list of unpinned subscribed channels."
   },
+  "subscriptionListInactiveOrMutedChannels": "{num} inactive or muted",
+  "@subscriptionListInactiveOrMutedChannels": {
+    "description": "Label for a button in the list of subscribed channels, in a section that has both inactive and muted channels. The button shows or hides those channels; the number is how many there are.",
+    "placeholders": {
+      "num": {"type": "int", "example": "3"}
+    }
+  },
+  "subscriptionListMutedChannels": "{num} muted",
+  "@subscriptionListMutedChannels": {
+    "description": "Label for a button in the list of subscribed channels, in a section that has muted channels. The button shows or hides those channels; the number is how many there are.",
+    "placeholders": {
+      "num": {"type": "int", "example": "3"}
+    }
+  },
+  "subscriptionListInactiveChannels": "{num} inactive",
+  "@subscriptionListInactiveChannels": {
+    "description": "Label for a button in the list of subscribed channels, in a section that has inactive channels. The button shows or hides those channels; the number is how many there are.",
+    "placeholders": {
+      "num": {"type": "int", "example": "3"}
+    }
+  },
   "notifSelfUser": "You",
   "@notifSelfUser": {
     "description": "Display name for the user themself, to show after replying in an Android notification"

@@ -127,27 +127,80 @@ class _SubscriptionListPageBodyState extends State<SubscriptionListPageBody> wit
     ];
   }
 
+  /// The sections whose muted and inactive channels the user chose to show.
+  ///
+  /// As on web, this isn't saved: those channels start out hidden again
+  /// whenever this page is freshly opened.
+  final Set<UiChannelFolder> _revealedSections = {};
+
+  void _toggleRevealed(UiChannelFolder folder) {
+    setState(() {
+      if (!_revealedSections.remove(folder)) {
+        _revealedSections.add(folder);
+      }
+    });
+  }
+
+  /// The total unread count in [subscriptions], as for [SubscriptionItem],
+  /// and whether to show a [MutedUnreadBadge] instead.
+  ({int count, bool showMutedUnreadBadge}) _unreadsIn(
+      Iterable<Subscription> subscriptions) {
+    int count = 0;
+    bool hasUnreadsInChannelNarrow = false;
+    for (final subscription in subscriptions) {
+      count += unreadsModel!.countInChannel(subscription.streamId);
+      hasUnreadsInChannelNarrow = hasUnreadsInChannelNarrow
+        || unreadsModel!.countInChannelNarrow(subscription.streamId) > 0;
+    }
+    return (count: count,
+      showMutedUnreadBadge: count == 0 && hasUnreadsInChannelNarrow);
+  }
+
   /// The sections for [UserSettings.webLeftSidebarShowChannelFolders].
   List<Widget> _buildFolderSections(BuildContext context,
       List<Subscription> subscriptions) {
     final store = PerAccountStoreWidget.of(context);
     final zulipLocalizations = ZulipLocalizations.of(context);
 
+    Widget buildList(List<Subscription> subscriptions) => _SubscriptionList(
+      unreadsModel: unreadsModel,
+      subscriptions: subscriptions,
+      showTopicListButtonInActionSheet: widget.showTopicListButtonInActionSheet,
+      onChannelSelect: _handleChannelSelect);
+
     final sections = groupSubscriptionsByFolder(store, subscriptions);
-    return [
-      for (final (index, section) in sections.indexed) ...[
+    final result = <Widget>[];
+    for (final (index, section) in sections.indexed) {
+      result.add(SliverToBoxAdapter(
+        child: SubscriptionListFolderHeader(
+          label: section.folder.name(
+            store: store, zulipLocalizations: zulipLocalizations),
+          isFirst: index == 0)));
+
+      if (!section.hasHideableChannels) {
+        // The pinned section shows its muted channels at the end;
+        // there's no toggle.  Other sections have nothing to hide.
+        result.add(buildList([...section.visible, ...section.muted]));
+        continue;
+      }
+
+      final hidden = [...section.muted, ...section.inactive];
+      final revealed = _revealedSections.contains(section.folder);
+      final unreads = _unreadsIn(hidden);
+      result.addAll([
+        buildList(section.visible),
         SliverToBoxAdapter(
-          child: SubscriptionListFolderHeader(
-            label: section.folder.name(
-              store: store, zulipLocalizations: zulipLocalizations),
-            isFirst: index == 0)),
-        _SubscriptionList(
-          unreadsModel: unreadsModel,
-          subscriptions: [...section.visible, ...section.muted, ...section.inactive],
-          showTopicListButtonInActionSheet: widget.showTopicListButtonInActionSheet,
-          onChannelSelect: _handleChannelSelect),
-      ],
-    ];
+          child: SubscriptionListHiddenChannelsToggle(
+            mutedCount: section.muted.length,
+            inactiveCount: section.inactive.length,
+            revealed: revealed,
+            unreadCount: unreads.count,
+            showMutedUnreadBadge: unreads.showMutedUnreadBadge,
+            onTap: () => _toggleRevealed(section.folder))),
+        if (revealed) buildList(hidden),
+      ]);
+    }
+    return result;
   }
 
   @override
@@ -326,6 +379,90 @@ class SubscriptionListFolderHeader extends StatelessWidget {
               letterSpacing: proportionalLetterSpacing(context, 0.02, baseFontSize: _fontSize),
             ).merge(weightVariableTextStyle(context, wght: 700)),
             label.toUpperCase()))));
+  }
+}
+
+/// A button for showing or hiding a section's muted and inactive channels,
+/// when the subscription list is grouped by channel folder.
+///
+/// This follows web's "N INACTIVE OR MUTED" toggle in the left sidebar.
+@visibleForTesting
+class SubscriptionListHiddenChannelsToggle extends StatelessWidget {
+  const SubscriptionListHiddenChannelsToggle({
+    super.key,
+    required this.mutedCount,
+    required this.inactiveCount,
+    required this.revealed,
+    required this.unreadCount,
+    required this.showMutedUnreadBadge,
+    required this.onTap,
+  });
+
+  final int mutedCount;
+  final int inactiveCount;
+
+  /// Whether the muted and inactive channels are currently shown.
+  final bool revealed;
+
+  /// The unread count in the muted and inactive channels,
+  /// shown while they're hidden.
+  final int unreadCount;
+
+  /// Whether to show a [MutedUnreadBadge], while the channels are hidden,
+  /// when [unreadCount] is zero.
+  final bool showMutedUnreadBadge;
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final designVariables = DesignVariables.of(context);
+    final zulipLocalizations = ZulipLocalizations.of(context);
+
+    final label = switch ((mutedCount, inactiveCount)) {
+      (> 0, > 0) => zulipLocalizations.subscriptionListInactiveOrMutedChannels(
+                      mutedCount + inactiveCount),
+      (> 0, _)   => zulipLocalizations.subscriptionListMutedChannels(mutedCount),
+      (_, _)     => zulipLocalizations.subscriptionListInactiveChannels(inactiveCount),
+    };
+
+    return Semantics(button: true, expanded: revealed,
+      child: Material(
+        // TODO(design) check if this is the right variable
+        color: designVariables.background,
+        child: InkWell(
+          onTap: onTap,
+          child: Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
+            const SizedBox(width: 16),
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 11),
+              child: Icon(size: 18, color: designVariables.folderText,
+                revealed ? ZulipIcons.chevron_down : ZulipIcons.chevron_right)),
+            const SizedBox(width: 5),
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 10),
+                child: Text(
+                  style: TextStyle(
+                    fontSize: 16,
+                    height: (20 / 16),
+                    color: designVariables.folderText,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  label))),
+            if (!revealed && unreadCount > 0) ...[
+              const SizedBox(width: 12),
+              CounterBadge(
+                kind: CounterBadgeKind.unread,
+                count: unreadCount,
+                channelIdForBackground: null),
+            ] else if (!revealed && showMutedUnreadBadge) ...[
+              const SizedBox(width: 12),
+              const MutedUnreadBadge(),
+            ],
+            const SizedBox(width: 16),
+          ]))));
   }
 }
 

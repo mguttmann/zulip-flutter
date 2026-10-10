@@ -1190,6 +1190,21 @@ class ZulipLocalizationsJa extends ZulipLocalizations {
   String get unpinnedSubscriptionsLabel => 'ピン留めなし';
 
   @override
+  String subscriptionListInactiveOrMutedChannels(int num) {
+    return '$num inactive or muted';
+  }
+
+  @override
+  String subscriptionListMutedChannels(int num) {
+    return '$num muted';
+  }
+
+  @override
+  String subscriptionListInactiveChannels(int num) {
+    return '$num inactive';
+  }
+
+  @override
   String get notifSelfUser => '自分';
 
   @override

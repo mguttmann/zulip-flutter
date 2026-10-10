@@ -1254,6 +1254,21 @@ class ZulipLocalizationsSl extends ZulipLocalizations {
   String get unpinnedSubscriptionsLabel => 'Nepripeto';
 
   @override
+  String subscriptionListInactiveOrMutedChannels(int num) {
+    return '$num inactive or muted';
+  }
+
+  @override
+  String subscriptionListMutedChannels(int num) {
+    return '$num muted';
+  }
+
+  @override
+  String subscriptionListInactiveChannels(int num) {
+    return '$num inactive';
+  }
+
+  @override
   String get notifSelfUser => 'Vi';
 
   @override
