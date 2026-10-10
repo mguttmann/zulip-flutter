@@ -1390,6 +1390,7 @@ UserSettings userSettings({
   bool? displayEmojiReactionUsers,
   Emojiset? emojiset,
   bool? webInboxShowChannelFolders,
+  bool? webLeftSidebarShowChannelFolders,
   bool? presenceEnabled,
 }) {
   return UserSettings(
@@ -1398,6 +1399,7 @@ UserSettings userSettings({
     displayEmojiReactionUsers: displayEmojiReactionUsers ?? true,
     emojiset: emojiset ?? Emojiset.google,
     webInboxShowChannelFolders: webInboxShowChannelFolders ?? true,
+    webLeftSidebarShowChannelFolders: webLeftSidebarShowChannelFolders ?? false,
     presenceEnabled: presenceEnabled ?? true,
   );
 }

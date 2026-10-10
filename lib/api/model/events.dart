@@ -269,6 +269,7 @@ class UserSettingsUpdateEvent extends Event {
       case UserSettingName.emojiset:
         return Emojiset.fromRawString(value as String);
       case UserSettingName.webInboxShowChannelFolders:
+      case UserSettingName.webLeftSidebarShowChannelFolders:
       case UserSettingName.presenceEnabled:
         return value as bool;
       case null:

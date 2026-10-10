@@ -72,4 +72,12 @@ void main() {
       check(settings.emojiset).equals(Emojiset.unknown);
     }
   });
+
+  test('UserSettings.webLeftSidebarShowChannelFolders defaults to false', () {
+    // TODO(server-11) remove this test
+    final json = eg.userSettings(webLeftSidebarShowChannelFolders: true).toJson()
+      ..remove('web_left_sidebar_show_channel_folders');
+    final settings = UserSettings.fromJson(json);
+    check(settings.webLeftSidebarShowChannelFolders).isFalse();
+  });
 }

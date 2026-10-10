@@ -109,6 +109,8 @@ const _$UserSettingNameEnumMap = {
   UserSettingName.displayEmojiReactionUsers: 'display_emoji_reaction_users',
   UserSettingName.emojiset: 'emojiset',
   UserSettingName.webInboxShowChannelFolders: 'web_inbox_show_channel_folders',
+  UserSettingName.webLeftSidebarShowChannelFolders:
+      'web_left_sidebar_show_channel_folders',
   UserSettingName.presenceEnabled: 'presence_enabled',
 };
 

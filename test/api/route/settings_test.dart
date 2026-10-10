@@ -31,6 +31,9 @@ void main() {
           case UserSettingName.webInboxShowChannelFolders:
             newSettings[name] = false;
             expectedBodyFields['web_inbox_show_channel_folders'] = 'false';
+          case UserSettingName.webLeftSidebarShowChannelFolders:
+            newSettings[name] = false;
+            expectedBodyFields['web_left_sidebar_show_channel_folders'] = 'false';
           case UserSettingName.presenceEnabled:
             newSettings[name] = true;
             expectedBodyFields['presence_enabled'] = 'true';

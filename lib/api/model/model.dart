@@ -340,6 +340,7 @@ enum UserSettingName {
   displayEmojiReactionUsers,
   emojiset,
   webInboxShowChannelFolders,
+  webLeftSidebarShowChannelFolders,
   presenceEnabled,
   ;
 
