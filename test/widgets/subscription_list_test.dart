@@ -3,8 +3,10 @@ import 'package:flutter_checks/flutter_checks.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:legacy_checks/legacy_checks.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:zulip/api/model/events.dart';
 import 'package:zulip/api/model/initial_snapshot.dart';
 import 'package:zulip/api/model/model.dart';
+import 'package:zulip/model/store.dart';
 import 'package:zulip/widgets/color.dart';
 import 'package:zulip/widgets/home.dart';
 import 'package:zulip/widgets/icons.dart';
@@ -21,10 +23,15 @@ import 'test_app.dart';
 void main() {
   TestZulipBinding.ensureInitialized();
 
+  late PerAccountStore store;
+
   Future<void> setupStreamListPage(WidgetTester tester, {
     required List<Subscription> subscriptions,
     List<UserTopicItem> userTopics = const [],
     UnreadMessagesSnapshot? unreadMsgs,
+    List<ChannelFolder> channelFolders = const [],
+    bool webLeftSidebarShowChannelFolders = false,
+    DemoteInactiveStreamsSetting demoteInactiveStreams = .automatic,
   }) async {
     addTearDown(testBinding.reset);
     final initialSnapshot = eg.initialSnapshot(
@@ -32,8 +39,13 @@ void main() {
       streams: subscriptions.toList(),
       userTopics: userTopics,
       unreadMsgs: unreadMsgs,
+      channelFolders: channelFolders,
+      userSettings: eg.userSettings(
+        webLeftSidebarShowChannelFolders: webLeftSidebarShowChannelFolders,
+        demoteInactiveStreams: demoteInactiveStreams),
     );
     await testBinding.globalStore.add(eg.selfAccount, initialSnapshot);
+    store = await testBinding.globalStore.perAccount(eg.selfAccount.id);
 
     await tester.pumpWidget(TestZulipApp(accountId: eg.selfAccount.id,
       child: const HomePage()));
@@ -57,6 +69,10 @@ void main() {
   int getItemCount() {
     return find.byType(SubscriptionItem).evaluate().length;
   }
+
+  Iterable<int> listedStreamIds(WidgetTester tester) => tester
+    .widgetList<SubscriptionItem>(find.byType(SubscriptionItem))
+    .map((e) => e.subscription.streamId);
 
   testWidgets('empty', (tester) async {
     await setupStreamListPage(tester, subscriptions: []);
@@ -99,10 +115,6 @@ void main() {
   });
 
   group('subscription sorting', () {
-    Iterable<int> listedStreamIds(WidgetTester tester) => tester
-      .widgetList<SubscriptionItem>(find.byType(SubscriptionItem))
-      .map((e) => e.subscription.streamId);
-
     testWidgets('pinned are shown on the top', (tester) async {
       await setupStreamListPage(tester, subscriptions: [
         eg.subscription(eg.stream(streamId: 1, name: 'a'), pinToTop: false),
@@ -351,5 +363,129 @@ void main() {
     checkStreamNameWght(unmutedStreamWithNoUnmutedUnreads.name, 400);
     checkStreamNameWght(mutedStreamWithUnmutedUnreads.name,     400);
     checkStreamNameWght(mutedStreamWithNoUnmutedUnreads.name,   400);
+  });
+
+  group('channel folders', () {
+    List<String> folderHeaderLabels(WidgetTester tester) => tester
+      .widgetList<SubscriptionListFolderHeader>(find.byType(SubscriptionListFolderHeader))
+      .map((e) => e.label).toList();
+
+    testWidgets('setting off: pinned and unpinned, no folder headers', (tester) async {
+      final folder = eg.channelFolder();
+      await setupStreamListPage(tester,
+        webLeftSidebarShowChannelFolders: false,
+        channelFolders: [folder],
+        subscriptions: [
+          eg.subscription(eg.stream(folderId: folder.id), pinToTop: true),
+          eg.subscription(eg.stream(folderId: folder.id)),
+        ]);
+      check(isPinnedHeaderInTree()).isTrue();
+      check(isUnpinnedHeaderInTree()).isTrue();
+      check(folderHeaderLabels(tester)).isEmpty();
+    });
+
+    testWidgets('pinned, folders in order, other', (tester) async {
+      final folderZebra = eg.channelFolder(name: 'Zebra', order: 0);
+      final folderAlpha = eg.channelFolder(name: 'Alpha', order: 1);
+      await setupStreamListPage(tester,
+        webLeftSidebarShowChannelFolders: true,
+        channelFolders: [folderZebra, folderAlpha],
+        subscriptions: [
+          eg.subscription(eg.stream(streamId: 1, folderId: folderAlpha.id)),
+          eg.subscription(eg.stream(streamId: 2)),
+          eg.subscription(eg.stream(streamId: 3, folderId: folderZebra.id)),
+          eg.subscription(eg.stream(streamId: 4), pinToTop: true),
+        ]);
+      check(folderHeaderLabels(tester))
+        .deepEquals(['Pinned channels', 'Zebra', 'Alpha', 'Other channels']);
+      check(listedStreamIds(tester)).deepEquals([4, 3, 1, 2]);
+      check(isPinnedHeaderInTree()).isFalse();
+      check(isUnpinnedHeaderInTree()).isFalse();
+    });
+
+    testWidgets('header labels are uppercase', (tester) async {
+      final folder = eg.channelFolder(name: 'Zebra');
+      await setupStreamListPage(tester,
+        webLeftSidebarShowChannelFolders: true,
+        channelFolders: [folder],
+        subscriptions: [eg.subscription(eg.stream(folderId: folder.id))]);
+      check(find.text('ZEBRA')).findsOne();
+      check(find.text('Zebra')).findsNothing();
+    });
+
+    testWidgets('channel moved to another folder: update live', (tester) async {
+      final folder1 = eg.channelFolder(name: 'One', order: 0);
+      final folder2 = eg.channelFolder(name: 'Two', order: 1);
+      final channel1 = eg.stream(folderId: folder1.id);
+      final channel2 = eg.stream(folderId: folder2.id);
+      await setupStreamListPage(tester,
+        webLeftSidebarShowChannelFolders: true,
+        channelFolders: [folder1, folder2],
+        subscriptions: [eg.subscription(channel1), eg.subscription(channel2)]);
+      check(folderHeaderLabels(tester)).deepEquals(['One', 'Two']);
+
+      await store.handleEvent(eg.channelUpdateEvent(channel1,
+        property: ChannelPropertyName.folderId, value: folder2.id));
+      await tester.pump();
+      check(folderHeaderLabels(tester)).deepEquals(['Two']);
+      check(getItemCount()).equals(2);
+
+      await store.handleEvent(eg.channelUpdateEvent(channel1,
+        property: ChannelPropertyName.folderId, value: null));
+      await tester.pump();
+      check(folderHeaderLabels(tester)).deepEquals(['Two', 'Other channels']);
+    });
+
+    testWidgets('folder renamed, reordered, archived: update live', (tester) async {
+      final folder1 = eg.channelFolder(name: 'One', order: 0);
+      final folder2 = eg.channelFolder(name: 'Two', order: 1);
+      await setupStreamListPage(tester,
+        webLeftSidebarShowChannelFolders: true,
+        channelFolders: [folder1, folder2],
+        subscriptions: [
+          eg.subscription(eg.stream(folderId: folder1.id)),
+          eg.subscription(eg.stream(folderId: folder2.id)),
+        ]);
+      check(folderHeaderLabels(tester)).deepEquals(['One', 'Two']);
+
+      await store.handleEvent(ChannelFolderUpdateEvent(id: 1,
+        channelFolderId: folder1.id,
+        data: eg.channelFolderChange(name: 'Uno')));
+      await tester.pump();
+      check(folderHeaderLabels(tester)).deepEquals(['Uno', 'Two']);
+
+      await store.handleEvent(ChannelFolderReorderEvent(id: 2,
+        order: [folder2.id, folder1.id]));
+      await tester.pump();
+      check(folderHeaderLabels(tester)).deepEquals(['Two', 'Uno']);
+
+      await store.handleEvent(ChannelFolderUpdateEvent(id: 3,
+        channelFolderId: folder2.id,
+        data: eg.channelFolderChange(isArchived: true)));
+      await tester.pump();
+      check(folderHeaderLabels(tester)).deepEquals(['Uno', 'Other channels']);
+    });
+
+    testWidgets('setting toggled: update live', (tester) async {
+      final folder = eg.channelFolder(name: 'Zebra');
+      await setupStreamListPage(tester,
+        webLeftSidebarShowChannelFolders: true,
+        channelFolders: [folder],
+        subscriptions: [eg.subscription(eg.stream(folderId: folder.id))]);
+      check(folderHeaderLabels(tester)).deepEquals(['Zebra']);
+
+      await store.handleEvent(UserSettingsUpdateEvent(id: 1,
+        property: UserSettingName.webLeftSidebarShowChannelFolders,
+        value: false));
+      await tester.pump();
+      check(folderHeaderLabels(tester)).isEmpty();
+      check(isUnpinnedHeaderInTree()).isTrue();
+
+      await store.handleEvent(UserSettingsUpdateEvent(id: 2,
+        property: UserSettingName.webLeftSidebarShowChannelFolders,
+        value: true));
+      await tester.pump();
+      check(folderHeaderLabels(tester)).deepEquals(['Zebra']);
+    });
   });
 }

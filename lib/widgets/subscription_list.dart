@@ -4,6 +4,7 @@ import '../api/model/model.dart';
 import '../generated/l10n/zulip_localizations.dart';
 import '../model/channel.dart';
 import '../model/narrow.dart';
+import '../model/subscription_list.dart';
 import '../model/unreads.dart';
 import 'action_sheet.dart';
 import 'all_channels.dart';
@@ -126,18 +127,41 @@ class _SubscriptionListPageBodyState extends State<SubscriptionListPageBody> wit
     ];
   }
 
+  /// The sections for [UserSettings.webLeftSidebarShowChannelFolders].
+  List<Widget> _buildFolderSections(BuildContext context,
+      List<Subscription> subscriptions) {
+    final store = PerAccountStoreWidget.of(context);
+    final zulipLocalizations = ZulipLocalizations.of(context);
+
+    final sections = groupSubscriptionsByFolder(store, subscriptions);
+    return [
+      for (final (index, section) in sections.indexed) ...[
+        SliverToBoxAdapter(
+          child: SubscriptionListFolderHeader(
+            label: section.folder.name(
+              store: store, zulipLocalizations: zulipLocalizations),
+            isFirst: index == 0)),
+        _SubscriptionList(
+          unreadsModel: unreadsModel,
+          subscriptions: [...section.visible, ...section.muted, ...section.inactive],
+          showTopicListButtonInActionSheet: widget.showTopicListButtonInActionSheet,
+          onChannelSelect: _handleChannelSelect),
+      ],
+    ];
+  }
+
   @override
   Widget build(BuildContext context) {
     // Design referenced from:
     //   https://www.figma.com/file/1JTNtYo9memgW7vV6d0ygq/Zulip-Mobile?type=design&node-id=171-12359&mode=design&t=4d0vykoYQ0KGpFuu-0
 
-    // This is an initial version with "Pinned" and "Unpinned"
-    // sections following behavior in mobile. Recalculating
-    // groups and sorting on every `build` here: it performs well
-    // enough and not worth optimizing as it will be replaced
-    // with a different behavior:
-    // TODO: Implement new grouping behavior and design, see discussion at:
-    //   https://chat.zulip.org/#narrow/stream/101-design/topic/UI.20redesign.3A.20left.20sidebar/near/1540147
+    // If the user's setting [UserSettings.webLeftSidebarShowChannelFolders]
+    // is on, the sections follow web's left sidebar,
+    // grouping channels by folder; see [groupSubscriptionsByFolder].
+    // Otherwise there are "Pinned" and "Unpinned" sections,
+    // following behavior in mobile.
+    // Either way, we recalculate groups and sorting on every `build` here:
+    // it performs well enough and isn't worth optimizing.
 
     // TODO: Implement collapsible topics
 
@@ -192,7 +216,10 @@ class _SubscriptionListPageBodyState extends State<SubscriptionListPageBody> wit
       bottom: false,
       child: CustomScrollView(
         slivers: [
-          ..._buildPinnedAndUnpinnedSections(context, subscriptions),
+          if (store.userSettings.webLeftSidebarShowChannelFolders)
+            ..._buildFolderSections(context, subscriptions)
+          else
+            ..._buildPinnedAndUnpinnedSections(context, subscriptions),
 
           if (includeAllChannelsButton) ...[
             SliverPadding(
@@ -251,6 +278,54 @@ class _SubscriptionListHeader extends StatelessWidget {
             line,
             const SizedBox(width: 16),
           ])));
+  }
+}
+
+/// A header for a section of the subscription list
+/// when it's grouped by channel folder.
+///
+/// The style follows the folder headers in the inbox.
+@visibleForTesting
+class SubscriptionListFolderHeader extends StatelessWidget {
+  const SubscriptionListFolderHeader({
+    super.key,
+    required this.label,
+    required this.isFirst,
+  });
+
+  /// The label for this folder header, not yet uppercased.
+  ///
+  /// The implementation will call [String.toUpperCase] on this.
+  final String label;
+
+  /// Whether this is the first section.
+  final bool isFirst;
+
+  // Same as in the inbox's folder headers.
+  static const _fontSize = 17.0;
+
+  @override
+  Widget build(BuildContext context) {
+    final designVariables = DesignVariables.of(context);
+
+    final double topPadding = 10 + (isFirst ? 0 : 8);
+
+    return Semantics(container: true,
+      child: ColoredBox(
+        // TODO(design) check if this is the right variable
+        color: designVariables.background,
+        child: Padding(
+          padding: EdgeInsetsDirectional.fromSTEB(14, topPadding, 12, 10),
+          child: Text(
+            maxLines: 1,
+            overflow: .ellipsis,
+            style: TextStyle(
+              color: designVariables.folderText,
+              fontSize: _fontSize,
+              height: 20 / _fontSize,
+              letterSpacing: proportionalLetterSpacing(context, 0.02, baseFontSize: _fontSize),
+            ).merge(weightVariableTextStyle(context, wght: 700)),
+            label.toUpperCase()))));
   }
 }
 
