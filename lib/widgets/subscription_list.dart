@@ -90,6 +90,42 @@ class _SubscriptionListPageBodyState extends State<SubscriptionListPageBody> wit
     }
   }
 
+  List<Widget> _buildPinnedAndUnpinnedSections(BuildContext context,
+      List<Subscription> subscriptions) {
+    final zulipLocalizations = ZulipLocalizations.of(context);
+
+    final List<Subscription> pinned = [];
+    final List<Subscription> unpinned = [];
+    for (final subscription in subscriptions) {
+      if (subscription.pinToTop) {
+        pinned.add(subscription);
+      } else {
+        unpinned.add(subscription);
+      }
+    }
+    _sortSubs(pinned);
+    _sortSubs(unpinned);
+
+    return [
+      if (pinned.isNotEmpty) ...[
+        _SubscriptionListHeader(label: zulipLocalizations.pinnedSubscriptionsLabel),
+        _SubscriptionList(
+          unreadsModel: unreadsModel,
+          subscriptions: pinned,
+          showTopicListButtonInActionSheet: widget.showTopicListButtonInActionSheet,
+          onChannelSelect: _handleChannelSelect),
+      ],
+      if (unpinned.isNotEmpty) ...[
+        _SubscriptionListHeader(label: zulipLocalizations.unpinnedSubscriptionsLabel),
+        _SubscriptionList(
+          unreadsModel: unreadsModel,
+          subscriptions: unpinned,
+          showTopicListButtonInActionSheet: widget.showTopicListButtonInActionSheet,
+          onChannelSelect: _handleChannelSelect),
+      ],
+    ];
+  }
+
   @override
   Widget build(BuildContext context) {
     // Design referenced from:
@@ -116,8 +152,7 @@ class _SubscriptionListPageBodyState extends State<SubscriptionListPageBody> wit
       // see web/templates/left_sidebar.hbs.)
       && store.selfUser.role.isAtLeast(UserRole.member);
 
-    final List<Subscription> pinned = [];
-    final List<Subscription> unpinned = [];
+    final List<Subscription> subscriptions = [];
     final now = DateTime.now();
     for (final subscription in store.subscriptions.values) {
       if (widget.hideChannelsIfUserCantSendMessage) {
@@ -125,16 +160,10 @@ class _SubscriptionListPageBodyState extends State<SubscriptionListPageBody> wit
           continue;
         }
       }
-      if (subscription.pinToTop) {
-        pinned.add(subscription);
-      } else {
-        unpinned.add(subscription);
-      }
+      subscriptions.add(subscription);
     }
-    _sortSubs(pinned);
-    _sortSubs(unpinned);
 
-    if (pinned.isEmpty && unpinned.isEmpty) {
+    if (subscriptions.isEmpty) {
       if (includeAllChannelsButton) {
         return PageBodyEmptyContentPlaceholder(
           header: zulipLocalizations.channelsEmptyPlaceholderHeader,
@@ -163,22 +192,7 @@ class _SubscriptionListPageBodyState extends State<SubscriptionListPageBody> wit
       bottom: false,
       child: CustomScrollView(
         slivers: [
-          if (pinned.isNotEmpty) ...[
-            _SubscriptionListHeader(label: zulipLocalizations.pinnedSubscriptionsLabel),
-            _SubscriptionList(
-              unreadsModel: unreadsModel,
-              subscriptions: pinned,
-              showTopicListButtonInActionSheet: widget.showTopicListButtonInActionSheet,
-              onChannelSelect: _handleChannelSelect),
-          ],
-          if (unpinned.isNotEmpty) ...[
-            _SubscriptionListHeader(label: zulipLocalizations.unpinnedSubscriptionsLabel),
-            _SubscriptionList(
-              unreadsModel: unreadsModel,
-              subscriptions: unpinned,
-              showTopicListButtonInActionSheet: widget.showTopicListButtonInActionSheet,
-              onChannelSelect: _handleChannelSelect),
-          ],
+          ..._buildPinnedAndUnpinnedSections(context, subscriptions),
 
           if (includeAllChannelsButton) ...[
             SliverPadding(
