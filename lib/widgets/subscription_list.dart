@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:material_ui/material_ui.dart';
 
 import '../api/model/model.dart';
@@ -51,24 +53,29 @@ class SubscriptionListPageBody extends StatefulWidget {
 
 class _SubscriptionListPageBodyState extends State<SubscriptionListPageBody> with PerAccountStoreAwareStateMixin<SubscriptionListPageBody> {
   Unreads? unreadsModel;
+  SubscriptionListSectionStore? sectionsModel;
 
   @override
   void onNewStore() {
+    final newStore = PerAccountStoreWidget.of(context);
     unreadsModel?.removeListener(_modelChanged);
-    unreadsModel = PerAccountStoreWidget.of(context).unreads
+    unreadsModel = newStore.unreads..addListener(_modelChanged);
+    sectionsModel?.removeListener(_modelChanged);
+    sectionsModel = newStore.subscriptionListSections
       ..addListener(_modelChanged);
   }
 
   @override
   void dispose() {
     unreadsModel?.removeListener(_modelChanged);
+    sectionsModel?.removeListener(_modelChanged);
     super.dispose();
   }
 
   void _modelChanged() {
     setState(() {
-      // The actual state lives in [unreadsModel].
-      // This method was called because that just changed.
+      // The actual state lives in [unreadsModel] and [sectionsModel].
+      // This method was called because one of those just changed.
     });
   }
 
@@ -127,18 +134,46 @@ class _SubscriptionListPageBodyState extends State<SubscriptionListPageBody> wit
     ];
   }
 
-  /// The sections whose muted and inactive channels the user chose to show.
+  /// The user's choices to show or hide sections' muted and inactive channels.
   ///
-  /// As on web, this isn't saved: those channels start out hidden again
-  /// whenever this page is freshly opened.
-  final Set<UiChannelFolder> _revealedSections = {};
+  /// As on web, this isn't saved: when this page is freshly opened,
+  /// those channels start out hidden again (see [_isRevealed]).
+  final Map<UiChannelFolder, bool> _revealedChoices = {};
 
-  void _toggleRevealed(UiChannelFolder folder) {
+  /// Whether to show [section]'s muted and inactive channels.
+  ///
+  /// By default they're hidden, unless the section has no other channels:
+  /// then an expanded section shows them, rather than just the toggle.
+  /// This follows web's `toggle_section_collapse`.
+  bool _isRevealed(SubscriptionListSection section) {
+    return _revealedChoices[section.folder] ?? section.visible.isEmpty;
+  }
+
+  void _toggleRevealed(SubscriptionListSection section) {
     setState(() {
-      if (!_revealedSections.remove(folder)) {
-        _revealedSections.add(folder);
-      }
+      _revealedChoices[section.folder] = !_isRevealed(section);
     });
+  }
+
+  /// Whether to show [section] collapsed,
+  /// following the user's saved choice if any.
+  ///
+  /// Without a saved choice, a section is collapsed if it has
+  /// only muted or inactive channels, as on web.
+  bool _isCollapsed(SubscriptionListSection section) {
+    return sectionsModel!.isCollapsed(section.folder)
+      ?? section.visible.isEmpty;
+  }
+
+  void _toggleCollapsed(SubscriptionListSection section) {
+    final collapsed = _isCollapsed(section);
+    if (collapsed && section.visible.isEmpty) {
+      // Expanding a section that has nothing but muted or inactive channels:
+      // show those channels, rather than a section with just the toggle.
+      // Keep showing them if the section later gains other channels.
+      _revealedChoices[section.folder] = true;
+    }
+    unawaited(sectionsModel!.setCollapsed(section.folder, !collapsed));
   }
 
   /// The total unread count in [subscriptions], as for [SubscriptionItem],
@@ -171,11 +206,21 @@ class _SubscriptionListPageBodyState extends State<SubscriptionListPageBody> wit
     final sections = groupSubscriptionsByFolder(store, subscriptions);
     final result = <Widget>[];
     for (final (index, section) in sections.indexed) {
+      final collapsed = _isCollapsed(section);
+      final sectionUnreads = collapsed
+        ? _unreadsIn([...section.visible, ...section.muted, ...section.inactive])
+        : null;
       result.add(SliverToBoxAdapter(
         child: SubscriptionListFolderHeader(
           label: section.folder.name(
             store: store, zulipLocalizations: zulipLocalizations),
-          isFirst: index == 0)));
+          isFirst: index == 0,
+          collapsed: collapsed,
+          unreadCount: sectionUnreads?.count ?? 0,
+          showMutedUnreadBadge: sectionUnreads?.showMutedUnreadBadge ?? false,
+          onTap: () => _toggleCollapsed(section))));
+
+      if (collapsed) continue;
 
       if (!section.hasHideableChannels) {
         // The pinned section shows its muted channels at the end;
@@ -185,7 +230,7 @@ class _SubscriptionListPageBodyState extends State<SubscriptionListPageBody> wit
       }
 
       final hidden = [...section.muted, ...section.inactive];
-      final revealed = _revealedSections.contains(section.folder);
+      final revealed = _isRevealed(section);
       final unreads = _unreadsIn(hidden);
       result.addAll([
         buildList(section.visible),
@@ -196,7 +241,7 @@ class _SubscriptionListPageBodyState extends State<SubscriptionListPageBody> wit
             revealed: revealed,
             unreadCount: unreads.count,
             showMutedUnreadBadge: unreads.showMutedUnreadBadge,
-            onTap: () => _toggleRevealed(section.folder))),
+            onTap: () => _toggleRevealed(section))),
         if (revealed) buildList(hidden),
       ]);
     }
@@ -337,13 +382,20 @@ class _SubscriptionListHeader extends StatelessWidget {
 /// A header for a section of the subscription list
 /// when it's grouped by channel folder.
 ///
-/// The style follows the folder headers in the inbox.
+/// Tapping it collapses or expands the section.
+/// While collapsed, it shows the section's unreads.
+///
+/// The text style follows the folder headers in the inbox.
 @visibleForTesting
 class SubscriptionListFolderHeader extends StatelessWidget {
   const SubscriptionListFolderHeader({
     super.key,
     required this.label,
     required this.isFirst,
+    required this.collapsed,
+    required this.unreadCount,
+    required this.showMutedUnreadBadge,
+    required this.onTap,
   });
 
   /// The label for this folder header, not yet uppercased.
@@ -354,6 +406,17 @@ class SubscriptionListFolderHeader extends StatelessWidget {
   /// Whether this is the first section.
   final bool isFirst;
 
+  final bool collapsed;
+
+  /// The unread count in the section, shown while [collapsed].
+  final int unreadCount;
+
+  /// Whether to show a [MutedUnreadBadge], while [collapsed],
+  /// when [unreadCount] is zero.
+  final bool showMutedUnreadBadge;
+
+  final VoidCallback onTap;
+
   // Same as in the inbox's folder headers.
   static const _fontSize = 17.0;
 
@@ -361,24 +424,48 @@ class SubscriptionListFolderHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     final designVariables = DesignVariables.of(context);
 
-    final double topPadding = 10 + (isFirst ? 0 : 8);
-
-    return Semantics(container: true,
+    return Semantics(container: true, button: true, expanded: !collapsed,
       child: ColoredBox(
         // TODO(design) check if this is the right variable
         color: designVariables.background,
         child: Padding(
-          padding: EdgeInsetsDirectional.fromSTEB(14, topPadding, 12, 10),
-          child: Text(
-            maxLines: 1,
-            overflow: .ellipsis,
-            style: TextStyle(
-              color: designVariables.folderText,
-              fontSize: _fontSize,
-              height: 20 / _fontSize,
-              letterSpacing: proportionalLetterSpacing(context, 0.02, baseFontSize: _fontSize),
-            ).merge(weightVariableTextStyle(context, wght: 700)),
-            label.toUpperCase()))));
+          padding: EdgeInsets.only(top: isFirst ? 0 : 8),
+          child: Material(
+            color: designVariables.background,
+            child: InkWell(
+              onTap: onTap,
+              child: ConstrainedBox(
+                // A comfortable touch target.
+                constraints: const BoxConstraints(minHeight: 44),
+                child: Padding(
+                  padding: const EdgeInsetsDirectional.fromSTEB(14, 10, 16, 10),
+                  child: Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
+                    Icon(size: 20, color: designVariables.folderText,
+                      collapsed ? ZulipIcons.chevron_right : ZulipIcons.chevron_down),
+                    const SizedBox(width: 4),
+                    Expanded(
+                      child: Text(
+                        maxLines: 1,
+                        overflow: .ellipsis,
+                        style: TextStyle(
+                          color: designVariables.folderText,
+                          fontSize: _fontSize,
+                          height: 20 / _fontSize,
+                          letterSpacing: proportionalLetterSpacing(context, 0.02, baseFontSize: _fontSize),
+                        ).merge(weightVariableTextStyle(context, wght: 700)),
+                        label.toUpperCase())),
+                    if (collapsed && unreadCount > 0) ...[
+                      const SizedBox(width: 12),
+                      // TODO(#747) show @-mention indicator when it applies
+                      CounterBadge(
+                        kind: CounterBadgeKind.unread,
+                        count: unreadCount,
+                        channelIdForBackground: null),
+                    ] else if (collapsed && showMutedUnreadBadge) ...[
+                      const SizedBox(width: 12),
+                      const MutedUnreadBadge(),
+                    ],
+                  ]))))))));
   }
 }
 

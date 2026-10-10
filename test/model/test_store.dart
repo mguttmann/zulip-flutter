@@ -104,10 +104,15 @@ class _TestGlobalStoreBackend implements GlobalStoreBackend {
     // Nothing to do.
   }
 
+  /// If non-null, [doSetSubscriptionListSectionCollapsed] throws this.
+  Object? subscriptionListSectionWriteException;
+
   @override
   Future<void> doSetSubscriptionListSectionCollapsed(
       int accountId, String sectionKey, bool collapsed) async {
-    // Nothing to do.
+    if (subscriptionListSectionWriteException != null) {
+      throw subscriptionListSectionWriteException!;
+    }
   }
 }
 
@@ -177,16 +182,34 @@ class TestGlobalStore extends GlobalStore with _ApiConnectionsMixin, _DatabaseMi
     GlobalSettingsData? globalSettings,
     Map<BoolGlobalSetting, bool>? boolGlobalSettings,
     Map<IntGlobalSetting, int>? intGlobalSettings,
-    required super.accounts,
+    required Iterable<Account> accounts,
     Iterable<PushKey>? pushKeys,
     Iterable<SubscriptionListSectionState>? subscriptionListSectionStates,
-  }) : super(backend: _TestGlobalStoreBackend(),
+  }) : this._(_TestGlobalStoreBackend(),
          globalSettings: globalSettings ?? GlobalSettingsData(),
          boolGlobalSettings: boolGlobalSettings ?? {},
          intGlobalSettings: intGlobalSettings ?? {},
+         accounts: accounts,
          pushKeys: pushKeys ?? [],
          subscriptionListSectionStates: subscriptionListSectionStates ?? [],
        );
+
+  TestGlobalStore._(this._backend, {
+    required super.globalSettings,
+    required super.boolGlobalSettings,
+    required super.intGlobalSettings,
+    required super.accounts,
+    required super.pushKeys,
+    required super.subscriptionListSectionStates,
+  }) : super(backend: _backend);
+
+  final _TestGlobalStoreBackend _backend;
+
+  /// If non-null, saving a choice from a [SubscriptionListSectionStore]
+  /// to the underlying data store throws this.
+  set subscriptionListSectionWriteException(Object? value) {
+    _backend.subscriptionListSectionWriteException = value;
+  }
 
   final Map<int, InitialSnapshot> _initialSnapshots = {};
 

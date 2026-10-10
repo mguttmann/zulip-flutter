@@ -6,6 +6,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:zulip/api/model/events.dart';
 import 'package:zulip/api/model/initial_snapshot.dart';
 import 'package:zulip/api/model/model.dart';
+import 'package:zulip/model/channel.dart';
 import 'package:zulip/model/store.dart';
 import 'package:zulip/model/subscription_list.dart';
 import 'package:zulip/widgets/color.dart';
@@ -71,6 +72,10 @@ void main() {
   int getItemCount() {
     return find.byType(SubscriptionItem).evaluate().length;
   }
+
+  List<String> folderHeaderLabels(WidgetTester tester) => tester
+    .widgetList<SubscriptionListFolderHeader>(find.byType(SubscriptionListFolderHeader))
+    .map((e) => e.label).toList();
 
   Iterable<int> listedStreamIds(WidgetTester tester) => tester
     .widgetList<SubscriptionItem>(find.byType(SubscriptionItem))
@@ -370,10 +375,6 @@ void main() {
   group('channel folders', () {
     final folder0 = eg.channelFolder(name: 'Zero', order: 0);
 
-    List<String> folderHeaderLabels(WidgetTester tester) => tester
-      .widgetList<SubscriptionListFolderHeader>(find.byType(SubscriptionListFolderHeader))
-      .map((e) => e.label).toList();
-
     testWidgets('setting off: pinned and unpinned, no folder headers', (tester) async {
       final folder = eg.channelFolder();
       await setupStreamListPage(tester,
@@ -633,6 +634,7 @@ void main() {
       final inactiveChannel = eg.stream(name: 'b', isRecentlyActive: false);
       await prepare(tester,
         subscriptions: [
+          eg.subscription(eg.stream(name: 'c')),
           eg.subscription(mutedChannel, isMuted: true),
           eg.subscription(inactiveChannel),
         ],
@@ -657,7 +659,10 @@ void main() {
     testWidgets('toggle shows muted unread badge when hidden channels have only muted unreads', (tester) async {
       final mutedChannel = eg.stream();
       await prepare(tester,
-        subscriptions: [eg.subscription(mutedChannel, isMuted: true)],
+        subscriptions: [
+          eg.subscription(eg.stream()),
+          eg.subscription(mutedChannel, isMuted: true),
+        ],
         userTopics: [
           eg.userTopicItem(mutedChannel, 'x', UserTopicVisibilityPolicy.none),
         ],
@@ -760,6 +765,384 @@ void main() {
       check(find.text('TWO')).findsNothing();
       check(find.widgetWithText(SubscriptionListHiddenChannelsToggle, '1 muted')).findsOne();
       check(listedStreamIds(tester)).deepEquals([1]);
+    });
+  });
+
+  group('collapse', () {
+    final folder = eg.channelFolder(name: 'Zebra', order: 0);
+
+    Future<void> prepare(WidgetTester tester, {
+      required List<Subscription> subscriptions,
+      UnreadMessagesSnapshot? unreadMsgs,
+      List<UserTopicItem> userTopics = const [],
+    }) async {
+      await setupStreamListPage(tester,
+        webLeftSidebarShowChannelFolders: true,
+        demoteInactiveStreams: .always,
+        channelFolders: [folder],
+        subscriptions: subscriptions,
+        unreadMsgs: unreadMsgs,
+        userTopics: userTopics);
+    }
+
+    Finder findHeader(String label) =>
+      find.widgetWithText(SubscriptionListFolderHeader, label.toUpperCase());
+
+    SubscriptionListFolderHeader header(WidgetTester tester, String label) =>
+      tester.widget<SubscriptionListFolderHeader>(findHeader(label));
+
+    void checkChevron(WidgetTester tester, String label, {required bool collapsed}) {
+      check(find.descendant(of: findHeader(label),
+          matching: find.byIcon(collapsed ? ZulipIcons.chevron_right : ZulipIcons.chevron_down)))
+        .findsOne();
+    }
+
+    testWidgets('tap header collapses and expands', (tester) async {
+      await prepare(tester, subscriptions: [
+        eg.subscription(eg.stream(streamId: 1, folderId: folder.id)),
+        eg.subscription(eg.stream(streamId: 2)),
+      ]);
+      check(listedStreamIds(tester)).deepEquals([1, 2]);
+      checkChevron(tester, 'Zebra', collapsed: false);
+
+      await tester.tap(findHeader('Zebra'));
+      await tester.pump();
+      check(listedStreamIds(tester)).deepEquals([2]);
+      checkChevron(tester, 'Zebra', collapsed: true);
+      check(store.subscriptionListSections
+        .isCollapsed(UiChannelFolderRealmFolder(id: folder.id))).equals(true);
+
+      await tester.tap(findHeader('Zebra'));
+      await tester.pump();
+      check(listedStreamIds(tester)).deepEquals([1, 2]);
+      checkChevron(tester, 'Zebra', collapsed: false);
+      check(store.subscriptionListSections
+        .isCollapsed(UiChannelFolderRealmFolder(id: folder.id))).equals(false);
+    });
+
+    testWidgets('header semantics: button with expanded state', (tester) async {
+      await prepare(tester, subscriptions: [
+        eg.subscription(eg.stream(folderId: folder.id)),
+      ]);
+      check(tester.semantics.find(findHeader('Zebra')))
+        .containsSemantics(isButton: true, hasExpandedState: true, isExpanded: true);
+
+      await tester.tap(findHeader('Zebra'));
+      await tester.pump();
+      check(tester.semantics.find(findHeader('Zebra')))
+        .containsSemantics(isButton: true, hasExpandedState: true, isExpanded: false);
+    });
+
+    testWidgets('collapsed section hides its toggle too', (tester) async {
+      await prepare(tester, subscriptions: [
+        eg.subscription(eg.stream(folderId: folder.id)),
+        eg.subscription(eg.stream(folderId: folder.id), isMuted: true),
+      ]);
+      check(find.byType(SubscriptionListHiddenChannelsToggle)).findsOne();
+
+      await tester.tap(findHeader('Zebra'));
+      await tester.pump();
+      check(find.byType(SubscriptionListHiddenChannelsToggle)).findsNothing();
+    });
+
+    testWidgets('pinned and other sections collapse too', (tester) async {
+      await prepare(tester, subscriptions: [
+        eg.subscription(eg.stream(streamId: 1), pinToTop: true),
+        eg.subscription(eg.stream(streamId: 2)),
+      ]);
+      await tester.tap(findHeader('Pinned channels'));
+      await tester.pump();
+      check(listedStreamIds(tester)).deepEquals([2]);
+
+      await tester.tap(findHeader('Other channels'));
+      await tester.pump();
+      check(listedStreamIds(tester)).isEmpty();
+    });
+
+    testWidgets('collapsed state persists after leaving the page', (tester) async {
+      addTearDown(testBinding.reset);
+      final subscriptions = [
+        eg.subscription(eg.stream(streamId: 1, folderId: folder.id)),
+        eg.subscription(eg.stream(streamId: 2)),
+        eg.subscription(eg.stream(streamId: 3), isMuted: true),
+      ];
+      await testBinding.globalStore.add(eg.selfAccount, eg.initialSnapshot(
+        subscriptions: subscriptions,
+        streams: subscriptions,
+        channelFolders: [folder],
+        userSettings: eg.userSettings(webLeftSidebarShowChannelFolders: true)));
+      Future<void> pumpPage(Widget child) async {
+        await tester.pumpWidget(TestZulipApp(accountId: eg.selfAccount.id,
+          child: child));
+        // global store, per-account store
+        await tester.pump();
+        await tester.pump();
+      }
+
+      await pumpPage(const SubscriptionListPageBody());
+      await tester.tap(findHeader('Zebra'));
+      await tester.pump();
+      await tester.tap(find.byType(SubscriptionListHiddenChannelsToggle));
+      await tester.pump();
+      check(listedStreamIds(tester)).deepEquals([2, 3]);
+
+      await pumpPage(const SizedBox.shrink());
+      check(find.byType(SubscriptionListPageBody, skipOffstage: false)).findsNothing();
+
+      await pumpPage(const SubscriptionListPageBody());
+      checkChevron(tester, 'Zebra', collapsed: true);
+      // The collapsed section stays collapsed, but the muted channel is
+      // hidden again: as on web, that choice isn't saved.
+      check(listedStreamIds(tester)).deepEquals([2]);
+    });
+
+    testWidgets('collapsed state already saved when the page opens', (tester) async {
+      // As if loaded from the database when the app starts.
+      await testBinding.globalStore.subscriptionListSections
+        .perAccount(eg.selfAccount.id)
+        .setCollapsed(UiChannelFolderPseudoOther(), true);
+      await prepare(tester, subscriptions: [
+        eg.subscription(eg.stream(streamId: 1, folderId: folder.id)),
+        eg.subscription(eg.stream(streamId: 2)),
+      ]);
+      check(listedStreamIds(tester)).deepEquals([1]);
+      checkChevron(tester, 'Other channels', collapsed: true);
+    });
+
+    testWidgets('section with only muted or inactive channels starts collapsed; expanding reveals them', (tester) async {
+      await prepare(tester, subscriptions: [
+        eg.subscription(eg.stream(streamId: 1, folderId: folder.id), isMuted: true),
+        eg.subscription(eg.stream(streamId: 2, folderId: folder.id, isRecentlyActive: false)),
+        eg.subscription(eg.stream(streamId: 3)),
+      ]);
+      check(folderHeaderLabels(tester)).deepEquals(['Other channels', 'Zebra']);
+      check(listedStreamIds(tester)).deepEquals([3]);
+      checkChevron(tester, 'Zebra', collapsed: true);
+
+      await tester.tap(findHeader('Zebra'));
+      await tester.pump();
+      check(listedStreamIds(tester)).deepEquals([3, 1, 2]);
+
+      // Hide them, collapse, and expand again: they're shown again.
+      await tester.tap(find.byType(SubscriptionListHiddenChannelsToggle));
+      await tester.pump();
+      check(listedStreamIds(tester)).deepEquals([3]);
+      await tester.tap(findHeader('Zebra'));
+      await tester.pump();
+      await tester.tap(findHeader('Zebra'));
+      await tester.pump();
+      check(listedStreamIds(tester)).deepEquals([3, 1, 2]);
+    });
+
+    testWidgets('after expanding, muted channels stay shown when a channel becomes visible', (tester) async {
+      final channel1 = eg.stream(streamId: 1, name: 'a', folderId: folder.id);
+      await prepare(tester, subscriptions: [
+        eg.subscription(channel1, isMuted: true),
+        eg.subscription(eg.stream(streamId: 2, name: 'b', folderId: folder.id), isMuted: true),
+      ]);
+      await tester.tap(findHeader('Zebra'));
+      await tester.pump();
+      check(listedStreamIds(tester)).deepEquals([1, 2]);
+
+      await store.handleEvent(SubscriptionUpdateEvent(id: 1,
+        channelId: channel1.streamId,
+        property: SubscriptionProperty.isMuted, value: false));
+      await tester.pump();
+      check(listedStreamIds(tester)).deepEquals([1, 2]);
+    });
+
+    testWidgets('without a saved choice, default follows the section live', (tester) async {
+      // Web instead collapses such a section again whenever it redraws the
+      // list, even after the user expanded it, and leaves it collapsed when
+      // it regains a visible channel.  Here a saved choice always wins.
+      final channel = eg.stream(streamId: 1, folderId: folder.id);
+      await prepare(tester, subscriptions: [
+        eg.subscription(channel),
+        eg.subscription(eg.stream(streamId: 2)),
+      ]);
+      checkChevron(tester, 'Zebra', collapsed: false);
+
+      await store.handleEvent(SubscriptionUpdateEvent(id: 1,
+        channelId: channel.streamId,
+        property: SubscriptionProperty.isMuted, value: true));
+      await tester.pump();
+      checkChevron(tester, 'Zebra', collapsed: true);
+      check(listedStreamIds(tester)).deepEquals([2]);
+
+      await store.handleEvent(SubscriptionUpdateEvent(id: 2,
+        channelId: channel.streamId,
+        property: SubscriptionProperty.isMuted, value: false));
+      await tester.pump();
+      checkChevron(tester, 'Zebra', collapsed: false);
+      check(listedStreamIds(tester)).deepEquals([1, 2]);
+    });
+
+    testWidgets('pinned section with only muted channels starts collapsed', (tester) async {
+      await prepare(tester, subscriptions: [
+        eg.subscription(eg.stream(streamId: 1), pinToTop: true, isMuted: true),
+        eg.subscription(eg.stream(streamId: 2)),
+      ]);
+      checkChevron(tester, 'Pinned channels', collapsed: true);
+      check(listedStreamIds(tester)).deepEquals([2]);
+    });
+
+    testWidgets('stored expanded wins over default collapsed', (tester) async {
+      await testBinding.globalStore.subscriptionListSections
+        .perAccount(eg.selfAccount.id)
+        .setCollapsed(UiChannelFolderRealmFolder(id: folder.id), false);
+      await prepare(tester, subscriptions: [
+        eg.subscription(eg.stream(streamId: 1, folderId: folder.id), isMuted: true),
+      ]);
+      checkChevron(tester, 'Zebra', collapsed: false);
+      // The section has no other channels, so its muted channel is shown.
+      check(listedStreamIds(tester)).deepEquals([1]);
+      check(tester.widget<SubscriptionListHiddenChannelsToggle>(
+        find.byType(SubscriptionListHiddenChannelsToggle))).has((t) => t.revealed, 'revealed').isTrue();
+
+      // It can still be hidden with the toggle.
+      await tester.tap(find.byType(SubscriptionListHiddenChannelsToggle));
+      await tester.pump();
+      check(listedStreamIds(tester)).isEmpty();
+    });
+
+    testWidgets('save fails: choice still applies', (tester) async {
+      await prepare(tester, subscriptions: [
+        eg.subscription(eg.stream(streamId: 1, folderId: folder.id)),
+        eg.subscription(eg.stream(streamId: 2)),
+      ]);
+      testBinding.globalStore.subscriptionListSectionWriteException =
+        Exception('disk full');
+
+      await tester.tap(findHeader('Zebra'));
+      await tester.pump();
+      check(listedStreamIds(tester)).deepEquals([2]);
+      checkChevron(tester, 'Zebra', collapsed: true);
+    });
+
+    testWidgets('listens for collapse changes after a new store replaces the old', (tester) async {
+      await prepare(tester, subscriptions: [
+        eg.subscription(eg.stream(streamId: 1, folderId: folder.id)),
+        eg.subscription(eg.stream(streamId: 2)),
+      ]);
+      store.updateMachine!
+        ..debugPauseLoop()
+        ..poll()
+        ..debugPrepareLoopError(
+            eg.apiExceptionBadEventQueueId(queueId: store.queueId))
+        ..debugAdvanceLoop();
+      await tester.pump();
+      final newStore = testBinding.globalStore.perAccountSync(eg.selfAccount.id)!;
+      check(newStore).not((it) => it.identicalTo(store));
+      await tester.pump();
+
+      await tester.tap(findHeader('Zebra'));
+      await tester.pump();
+      check(listedStreamIds(tester)).deepEquals([2]);
+      checkChevron(tester, 'Zebra', collapsed: true);
+    });
+
+    testWidgets('no listener left behind after a new store, then leaving the page', (tester) async {
+      await prepare(tester, subscriptions: [
+        eg.subscription(eg.stream(folderId: folder.id)),
+      ]);
+      store.updateMachine!
+        ..debugPauseLoop()
+        ..poll()
+        ..debugPrepareLoopError(
+            eg.apiExceptionBadEventQueueId(queueId: store.queueId))
+        ..debugAdvanceLoop();
+      await tester.pump();
+      await tester.pump();
+
+      await tester.pumpWidget(const SizedBox.shrink());
+      // The section store outlives the page; changing it now
+      // must not reach the page's disposed state.
+      await testBinding.globalStore.subscriptionListSections
+        .perAccount(eg.selfAccount.id)
+        .setCollapsed(UiChannelFolderRealmFolder(id: folder.id), true);
+      await tester.pump();
+      check(tester.takeException()).isNull();
+    });
+
+    testWidgets('collapsed header shows unread badge; expanded does not', (tester) async {
+      final channel1 = eg.stream(folderId: folder.id);
+      final channel2 = eg.stream(folderId: folder.id);
+      final mutedChannel = eg.stream(folderId: folder.id);
+      await prepare(tester,
+        subscriptions: [
+          eg.subscription(channel1),
+          eg.subscription(channel2),
+          eg.subscription(mutedChannel, isMuted: true),
+        ],
+        userTopics: [
+          eg.userTopicItem(mutedChannel, 'c', UserTopicVisibilityPolicy.unmuted),
+        ],
+        unreadMsgs: eg.unreadMsgs(channels: [
+          eg.unreadChannelMsgs(streamId: channel1.streamId, topic: 'a', unreadMessageIds: [1, 2]),
+          eg.unreadChannelMsgs(streamId: channel2.streamId, topic: 'b', unreadMessageIds: [3]),
+          eg.unreadChannelMsgs(streamId: mutedChannel.streamId, topic: 'c', unreadMessageIds: [4, 5, 6]),
+        ]));
+      check(find.descendant(of: findHeader('Zebra'), matching: find.byType(CounterBadge)))
+        .findsNothing();
+
+      await tester.tap(findHeader('Zebra'));
+      await tester.pump();
+      // The count includes the hidden muted channel's unmuted topic.
+      check(find.descendant(of: findHeader('Zebra'), matching: find.text('6')))
+        .findsOne();
+      check(header(tester, 'Zebra').unreadCount).equals(6);
+    });
+
+    testWidgets('collapsed header shows muted unread badge when only muted unreads', (tester) async {
+      final channel = eg.stream(folderId: folder.id);
+      await prepare(tester,
+        subscriptions: [eg.subscription(channel, isMuted: true)],
+        userTopics: [eg.userTopicItem(channel, 'a', UserTopicVisibilityPolicy.none)],
+        unreadMsgs: eg.unreadMsgs(channels: [
+          eg.unreadChannelMsgs(streamId: channel.streamId, topic: 'a', unreadMessageIds: [1]),
+        ]));
+      // Starts collapsed, having only a muted channel.
+      check(find.descendant(of: findHeader('Zebra'), matching: find.byType(CounterBadge)))
+        .findsNothing();
+      check(find.descendant(of: findHeader('Zebra'), matching: find.byType(MutedUnreadBadge)))
+        .findsOne();
+    });
+
+    testWidgets('collapsed header counts unreads in inactive channels', (tester) async {
+      final channel = eg.stream(folderId: folder.id);
+      final inactiveChannel = eg.stream(folderId: folder.id, isRecentlyActive: false);
+      await prepare(tester,
+        subscriptions: [
+          eg.subscription(channel),
+          eg.subscription(inactiveChannel),
+        ],
+        unreadMsgs: eg.unreadMsgs(channels: [
+          eg.unreadChannelMsgs(streamId: channel.streamId, topic: 'a', unreadMessageIds: [1]),
+          eg.unreadChannelMsgs(streamId: inactiveChannel.streamId, topic: 'b', unreadMessageIds: [2, 3]),
+        ]));
+      await tester.tap(findHeader('Zebra'));
+      await tester.pump();
+      check(find.descendant(of: findHeader('Zebra'), matching: find.text('3')))
+        .findsOne();
+    });
+
+    testWidgets('collapsed header unread badge updates live', (tester) async {
+      final channel = eg.stream(folderId: folder.id);
+      await prepare(tester,
+        subscriptions: [eg.subscription(channel)],
+        unreadMsgs: eg.unreadMsgs(channels: [
+          eg.unreadChannelMsgs(streamId: channel.streamId, topic: 'a', unreadMessageIds: [1]),
+        ]));
+      await tester.tap(findHeader('Zebra'));
+      await tester.pump();
+      check(find.descendant(of: findHeader('Zebra'), matching: find.text('1')))
+        .findsOne();
+
+      await store.addMessage(
+        eg.streamMessage(stream: channel, topic: 'a', flags: []));
+      await tester.pump();
+      check(find.descendant(of: findHeader('Zebra'), matching: find.text('2')))
+        .findsOne();
     });
   });
 }
