@@ -207,6 +207,24 @@ class PushKeys extends Table {
   ];
 }
 
+/// The table of the user's choices to collapse or expand sections
+/// of the subscription list, for each account.
+///
+/// A section with no row here gets a default.
+/// See `SubscriptionListSectionStore`.
+class SubscriptionListSectionStates extends Table {
+  Column<int> get accountId => integer()
+    .references(Accounts, #id, onDelete: .cascade)();
+
+  /// Identifies the section; see `subscriptionListSectionKey`.
+  Column<String> get sectionKey => text()();
+
+  Column<bool> get collapsed => boolean()();
+
+  @override
+  Set<Column<Object>>? get primaryKey => {accountId, sectionKey};
+}
+
 class UriConverter extends TypeConverter<Uri, String> {
   const UriConverter();
   @override String toSql(Uri value) => value.toString();
@@ -215,7 +233,7 @@ class UriConverter extends TypeConverter<Uri, String> {
 
 const _allTables = [
   GlobalSettings, BoolGlobalSettings, IntGlobalSettings,
-  Accounts, PushKeys,
+  Accounts, PushKeys, SubscriptionListSectionStates,
 ];
 
 @DriftDatabase(tables: _allTables)
@@ -230,7 +248,7 @@ class AppDatabase extends _$AppDatabase {
   //  * Fix resulting analyzer errors; in particular,
   //    write a migration in `_migrationSteps` below.
   //  * Write tests.
-  static const int latestSchemaVersion = 16; // See note.
+  static const int latestSchemaVersion = 17; // See note.
 
   @override
   int get schemaVersion => latestSchemaVersion;
@@ -341,6 +359,9 @@ class AppDatabase extends _$AppDatabase {
     from15To16: (m, schema) async {
       await m.addColumn(schema.accounts, schema.accounts.possibleLegacyPushToken);
     },
+    from16To17: (m, schema) async {
+      await m.createTable(schema.subscriptionListSectionStates);
+    },
   );
 
   Future<void> _createLatestSchema(Migrator m) async {
@@ -437,6 +458,13 @@ class AppDatabase extends _$AppDatabase {
       }
       rethrow;
     }
+  }
+
+  Future<void> setSubscriptionListSectionCollapsed(
+      int accountId, String sectionKey, bool collapsed) async {
+    await into(subscriptionListSectionStates).insertOnConflictUpdate(
+      SubscriptionListSectionStatesCompanion.insert(
+        accountId: accountId, sectionKey: sectionKey, collapsed: collapsed));
   }
 }
 

@@ -296,6 +296,51 @@ void main() {
         .go();
       check(await db.select(db.pushKeys).get()).isEmpty();
     });
+
+    group('SubscriptionListSectionStates', () {
+      Future<List<(int, String, bool)>> getRows() async {
+        final rows = await db.select(db.subscriptionListSectionStates).get();
+        return rows.map((r) => (r.accountId, r.sectionKey, r.collapsed)).toList();
+      }
+
+      test('insert, then replace', () async {
+        await db.createAccount(eg.selfAccount.toCompanion(false));
+        final accountId = eg.selfAccount.id;
+        await db.setSubscriptionListSectionCollapsed(accountId, 'pinned', true);
+        await db.setSubscriptionListSectionCollapsed(accountId, 'folder:3', false);
+        check(await getRows()).unorderedEquals([
+          (accountId, 'pinned', true),
+          (accountId, 'folder:3', false),
+        ]);
+
+        await db.setSubscriptionListSectionCollapsed(accountId, 'pinned', false);
+        check(await getRows()).unorderedEquals([
+          (accountId, 'pinned', false),
+          (accountId, 'folder:3', false),
+        ]);
+      });
+
+      test('same key on different accounts', () async {
+        await db.createAccount(eg.selfAccount.toCompanion(false));
+        await db.createAccount(eg.otherAccount.toCompanion(false));
+        await db.setSubscriptionListSectionCollapsed(eg.selfAccount.id, 'other', true);
+        await db.setSubscriptionListSectionCollapsed(eg.otherAccount.id, 'other', false);
+        check(await getRows()).unorderedEquals([
+          (eg.selfAccount.id, 'other', true),
+          (eg.otherAccount.id, 'other', false),
+        ]);
+      });
+
+      test('delete account cascades', () async {
+        await db.createAccount(eg.selfAccount.toCompanion(false));
+        await db.setSubscriptionListSectionCollapsed(eg.selfAccount.id, 'pinned', true);
+        check(await getRows()).length.equals(1);
+
+        await (db.delete(db.accounts)..where((a) => a.id.equals(eg.selfAccount.id)))
+          .go();
+        check(await getRows()).isEmpty();
+      });
+    });
   });
 
   group('migrations', () {
@@ -511,6 +556,8 @@ void main() {
     // v15 covered by "existing Account row" above
 
     // v16 covered by "existing Account row" above
+
+    // v17 only adds a new table; the "migrate without data" test covers it
   });
 }
 

@@ -2096,6 +2096,296 @@ class PushKeysCompanion extends UpdateCompanion<PushKey> {
   }
 }
 
+class $SubscriptionListSectionStatesTable extends SubscriptionListSectionStates
+    with
+        TableInfo<
+          $SubscriptionListSectionStatesTable,
+          SubscriptionListSectionState
+        > {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $SubscriptionListSectionStatesTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _accountIdMeta = const VerificationMeta(
+    'accountId',
+  );
+  @override
+  late final GeneratedColumn<int> accountId = GeneratedColumn<int>(
+    'account_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES accounts (id) ON DELETE CASCADE',
+    ),
+  );
+  static const VerificationMeta _sectionKeyMeta = const VerificationMeta(
+    'sectionKey',
+  );
+  @override
+  late final GeneratedColumn<String> sectionKey = GeneratedColumn<String>(
+    'section_key',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _collapsedMeta = const VerificationMeta(
+    'collapsed',
+  );
+  @override
+  late final GeneratedColumn<bool> collapsed = GeneratedColumn<bool>(
+    'collapsed',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("collapsed" IN (0, 1))',
+    ),
+  );
+  @override
+  List<GeneratedColumn> get $columns => [accountId, sectionKey, collapsed];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'subscription_list_section_states';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<SubscriptionListSectionState> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('account_id')) {
+      context.handle(
+        _accountIdMeta,
+        accountId.isAcceptableOrUnknown(data['account_id']!, _accountIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_accountIdMeta);
+    }
+    if (data.containsKey('section_key')) {
+      context.handle(
+        _sectionKeyMeta,
+        sectionKey.isAcceptableOrUnknown(data['section_key']!, _sectionKeyMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_sectionKeyMeta);
+    }
+    if (data.containsKey('collapsed')) {
+      context.handle(
+        _collapsedMeta,
+        collapsed.isAcceptableOrUnknown(data['collapsed']!, _collapsedMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_collapsedMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {accountId, sectionKey};
+  @override
+  SubscriptionListSectionState map(
+    Map<String, dynamic> data, {
+    String? tablePrefix,
+  }) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return SubscriptionListSectionState(
+      accountId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}account_id'],
+      )!,
+      sectionKey: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}section_key'],
+      )!,
+      collapsed: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}collapsed'],
+      )!,
+    );
+  }
+
+  @override
+  $SubscriptionListSectionStatesTable createAlias(String alias) {
+    return $SubscriptionListSectionStatesTable(attachedDatabase, alias);
+  }
+}
+
+class SubscriptionListSectionState extends DataClass
+    implements Insertable<SubscriptionListSectionState> {
+  final int accountId;
+
+  /// Identifies the section; see `subscriptionListSectionKey`.
+  final String sectionKey;
+  final bool collapsed;
+  const SubscriptionListSectionState({
+    required this.accountId,
+    required this.sectionKey,
+    required this.collapsed,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['account_id'] = Variable<int>(accountId);
+    map['section_key'] = Variable<String>(sectionKey);
+    map['collapsed'] = Variable<bool>(collapsed);
+    return map;
+  }
+
+  SubscriptionListSectionStatesCompanion toCompanion(bool nullToAbsent) {
+    return SubscriptionListSectionStatesCompanion(
+      accountId: Value(accountId),
+      sectionKey: Value(sectionKey),
+      collapsed: Value(collapsed),
+    );
+  }
+
+  factory SubscriptionListSectionState.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return SubscriptionListSectionState(
+      accountId: serializer.fromJson<int>(json['accountId']),
+      sectionKey: serializer.fromJson<String>(json['sectionKey']),
+      collapsed: serializer.fromJson<bool>(json['collapsed']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'accountId': serializer.toJson<int>(accountId),
+      'sectionKey': serializer.toJson<String>(sectionKey),
+      'collapsed': serializer.toJson<bool>(collapsed),
+    };
+  }
+
+  SubscriptionListSectionState copyWith({
+    int? accountId,
+    String? sectionKey,
+    bool? collapsed,
+  }) => SubscriptionListSectionState(
+    accountId: accountId ?? this.accountId,
+    sectionKey: sectionKey ?? this.sectionKey,
+    collapsed: collapsed ?? this.collapsed,
+  );
+  SubscriptionListSectionState copyWithCompanion(
+    SubscriptionListSectionStatesCompanion data,
+  ) {
+    return SubscriptionListSectionState(
+      accountId: data.accountId.present ? data.accountId.value : this.accountId,
+      sectionKey: data.sectionKey.present
+          ? data.sectionKey.value
+          : this.sectionKey,
+      collapsed: data.collapsed.present ? data.collapsed.value : this.collapsed,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('SubscriptionListSectionState(')
+          ..write('accountId: $accountId, ')
+          ..write('sectionKey: $sectionKey, ')
+          ..write('collapsed: $collapsed')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(accountId, sectionKey, collapsed);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is SubscriptionListSectionState &&
+          other.accountId == this.accountId &&
+          other.sectionKey == this.sectionKey &&
+          other.collapsed == this.collapsed);
+}
+
+class SubscriptionListSectionStatesCompanion
+    extends UpdateCompanion<SubscriptionListSectionState> {
+  final Value<int> accountId;
+  final Value<String> sectionKey;
+  final Value<bool> collapsed;
+  final Value<int> rowid;
+  const SubscriptionListSectionStatesCompanion({
+    this.accountId = const Value.absent(),
+    this.sectionKey = const Value.absent(),
+    this.collapsed = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  SubscriptionListSectionStatesCompanion.insert({
+    required int accountId,
+    required String sectionKey,
+    required bool collapsed,
+    this.rowid = const Value.absent(),
+  }) : accountId = Value(accountId),
+       sectionKey = Value(sectionKey),
+       collapsed = Value(collapsed);
+  static Insertable<SubscriptionListSectionState> custom({
+    Expression<int>? accountId,
+    Expression<String>? sectionKey,
+    Expression<bool>? collapsed,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (accountId != null) 'account_id': accountId,
+      if (sectionKey != null) 'section_key': sectionKey,
+      if (collapsed != null) 'collapsed': collapsed,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  SubscriptionListSectionStatesCompanion copyWith({
+    Value<int>? accountId,
+    Value<String>? sectionKey,
+    Value<bool>? collapsed,
+    Value<int>? rowid,
+  }) {
+    return SubscriptionListSectionStatesCompanion(
+      accountId: accountId ?? this.accountId,
+      sectionKey: sectionKey ?? this.sectionKey,
+      collapsed: collapsed ?? this.collapsed,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (accountId.present) {
+      map['account_id'] = Variable<int>(accountId.value);
+    }
+    if (sectionKey.present) {
+      map['section_key'] = Variable<String>(sectionKey.value);
+    }
+    if (collapsed.present) {
+      map['collapsed'] = Variable<bool>(collapsed.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('SubscriptionListSectionStatesCompanion(')
+          ..write('accountId: $accountId, ')
+          ..write('sectionKey: $sectionKey, ')
+          ..write('collapsed: $collapsed, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -2106,6 +2396,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
       $IntGlobalSettingsTable(this);
   late final $AccountsTable accounts = $AccountsTable(this);
   late final $PushKeysTable pushKeys = $PushKeysTable(this);
+  late final $SubscriptionListSectionStatesTable subscriptionListSectionStates =
+      $SubscriptionListSectionStatesTable(this);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -2116,6 +2408,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     intGlobalSettings,
     accounts,
     pushKeys,
+    subscriptionListSectionStates,
   ];
   @override
   StreamQueryUpdateRules get streamUpdateRules => const StreamQueryUpdateRules([
@@ -2125,6 +2418,18 @@ abstract class _$AppDatabase extends GeneratedDatabase {
         limitUpdateKind: UpdateKind.delete,
       ),
       result: [TableUpdate('push_keys', kind: UpdateKind.delete)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'accounts',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [
+        TableUpdate(
+          'subscription_list_section_states',
+          kind: UpdateKind.delete,
+        ),
+      ],
     ),
   ]);
 }
@@ -2769,6 +3074,31 @@ final class $$AccountsTableReferences
       manager.$state.copyWith(prefetchedData: cache),
     );
   }
+
+  static MultiTypedResultKey<
+    $SubscriptionListSectionStatesTable,
+    List<SubscriptionListSectionState>
+  >
+  _subscriptionListSectionStatesRefsTable(_$AppDatabase db) =>
+      MultiTypedResultKey.fromTable(
+        db.subscriptionListSectionStates,
+        aliasName: 'accounts__id__subscription_list_section_states__account_id',
+      );
+
+  $$SubscriptionListSectionStatesTableProcessedTableManager
+  get subscriptionListSectionStatesRefs {
+    final manager = $$SubscriptionListSectionStatesTableTableManager(
+      $_db,
+      $_db.subscriptionListSectionStates,
+    ).filter((f) => f.accountId.id.sqlEquals($_itemColumn<int>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(
+      _subscriptionListSectionStatesRefsTable($_db),
+    );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
 }
 
 class $$AccountsTableFilterComposer
@@ -2864,6 +3194,35 @@ class $$AccountsTableFilterComposer
                 $removeJoinBuilderFromRootComposer,
           ),
     );
+    return f(composer);
+  }
+
+  Expression<bool> subscriptionListSectionStatesRefs(
+    Expression<bool> Function(
+      $$SubscriptionListSectionStatesTableFilterComposer f,
+    )
+    f,
+  ) {
+    final $$SubscriptionListSectionStatesTableFilterComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.id,
+          referencedTable: $db.subscriptionListSectionStates,
+          getReferencedColumn: (t) => t.accountId,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$SubscriptionListSectionStatesTableFilterComposer(
+                $db: $db,
+                $table: $db.subscriptionListSectionStates,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
     return f(composer);
   }
 }
@@ -3015,6 +3374,35 @@ class $$AccountsTableAnnotationComposer
     );
     return f(composer);
   }
+
+  Expression<T> subscriptionListSectionStatesRefs<T extends Object>(
+    Expression<T> Function(
+      $$SubscriptionListSectionStatesTableAnnotationComposer a,
+    )
+    f,
+  ) {
+    final $$SubscriptionListSectionStatesTableAnnotationComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.id,
+          referencedTable: $db.subscriptionListSectionStates,
+          getReferencedColumn: (t) => t.accountId,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$SubscriptionListSectionStatesTableAnnotationComposer(
+                $db: $db,
+                $table: $db.subscriptionListSectionStates,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return f(composer);
+  }
 }
 
 class $$AccountsTableTableManager
@@ -3030,7 +3418,10 @@ class $$AccountsTableTableManager
           $$AccountsTableUpdateCompanionBuilder,
           (Account, $$AccountsTableReferences),
           Account,
-          PrefetchHooks Function({bool pushKeysRefs})
+          PrefetchHooks Function({
+            bool pushKeysRefs,
+            bool subscriptionListSectionStatesRefs,
+          })
         > {
   $$AccountsTableTableManager(_$AppDatabase db, $AccountsTable table)
     : super(
@@ -3107,28 +3498,67 @@ class $$AccountsTableTableManager
                 ),
               )
               .toList(),
-          prefetchHooksCallback: ({pushKeysRefs = false}) {
-            return PrefetchHooks(
-              db: db,
-              explicitlyWatchedTables: [if (pushKeysRefs) db.pushKeys],
-              addJoins: null,
-              getPrefetchedDataCallback: (items) async {
-                return [
-                  if (pushKeysRefs)
-                    await $_getPrefetchedData<Account, $AccountsTable, PushKey>(
-                      currentTable: table,
-                      referencedTable: $$AccountsTableReferences
-                          ._pushKeysRefsTable(db),
-                      managerFromTypedResult: (p0) =>
-                          $$AccountsTableReferences(db, table, p0).pushKeysRefs,
-                      referencedItemsForCurrentItem: (item, referencedItems) =>
-                          referencedItems.where((e) => e.accountId == item.id),
-                      typedResults: items,
-                    ),
-                ];
+          prefetchHooksCallback:
+              ({
+                pushKeysRefs = false,
+                subscriptionListSectionStatesRefs = false,
+              }) {
+                return PrefetchHooks(
+                  db: db,
+                  explicitlyWatchedTables: [
+                    if (pushKeysRefs) db.pushKeys,
+                    if (subscriptionListSectionStatesRefs)
+                      db.subscriptionListSectionStates,
+                  ],
+                  addJoins: null,
+                  getPrefetchedDataCallback: (items) async {
+                    return [
+                      if (pushKeysRefs)
+                        await $_getPrefetchedData<
+                          Account,
+                          $AccountsTable,
+                          PushKey
+                        >(
+                          currentTable: table,
+                          referencedTable: $$AccountsTableReferences
+                              ._pushKeysRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$AccountsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).pushKeysRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.accountId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                      if (subscriptionListSectionStatesRefs)
+                        await $_getPrefetchedData<
+                          Account,
+                          $AccountsTable,
+                          SubscriptionListSectionState
+                        >(
+                          currentTable: table,
+                          referencedTable: $$AccountsTableReferences
+                              ._subscriptionListSectionStatesRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$AccountsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).subscriptionListSectionStatesRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.accountId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                    ];
+                  },
+                );
               },
-            );
-          },
         ),
       );
 }
@@ -3145,7 +3575,10 @@ typedef $$AccountsTableProcessedTableManager =
       $$AccountsTableUpdateCompanionBuilder,
       (Account, $$AccountsTableReferences),
       Account,
-      PrefetchHooks Function({bool pushKeysRefs})
+      PrefetchHooks Function({
+        bool pushKeysRefs,
+        bool subscriptionListSectionStatesRefs,
+      })
     >;
 typedef $$PushKeysTableCreateCompanionBuilder = PushKeysCompanion Function({
   required int pushKeyId,
@@ -3464,6 +3897,318 @@ typedef $$PushKeysTableProcessedTableManager =
       PushKey,
       PrefetchHooks Function({bool accountId})
     >;
+typedef $$SubscriptionListSectionStatesTableCreateCompanionBuilder =
+    SubscriptionListSectionStatesCompanion Function({
+      required int accountId,
+      required String sectionKey,
+      required bool collapsed,
+      Value<int> rowid,
+    });
+typedef $$SubscriptionListSectionStatesTableUpdateCompanionBuilder =
+    SubscriptionListSectionStatesCompanion Function({
+      Value<int> accountId,
+      Value<String> sectionKey,
+      Value<bool> collapsed,
+      Value<int> rowid,
+    });
+
+final class $$SubscriptionListSectionStatesTableReferences
+    extends
+        BaseReferences<
+          _$AppDatabase,
+          $SubscriptionListSectionStatesTable,
+          SubscriptionListSectionState
+        > {
+  $$SubscriptionListSectionStatesTableReferences(
+    super.$_db,
+    super.$_table,
+    super.$_typedResult,
+  );
+
+  static $AccountsTable _accountIdTable(_$AppDatabase db) =>
+      db.accounts.createAlias(
+        'subscription_list_section_states__account_id__accounts__id',
+      );
+
+  $$AccountsTableProcessedTableManager get accountId {
+    final $_column = $_itemColumn<int>('account_id')!;
+
+    final manager = $$AccountsTableTableManager(
+      $_db,
+      $_db.accounts,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_accountIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+}
+
+class $$SubscriptionListSectionStatesTableFilterComposer
+    extends Composer<_$AppDatabase, $SubscriptionListSectionStatesTable> {
+  $$SubscriptionListSectionStatesTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get sectionKey => $composableBuilder(
+    column: $table.sectionKey,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get collapsed => $composableBuilder(
+    column: $table.collapsed,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$AccountsTableFilterComposer get accountId {
+    final $$AccountsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.accountId,
+      referencedTable: $db.accounts,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$AccountsTableFilterComposer(
+            $db: $db,
+            $table: $db.accounts,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$SubscriptionListSectionStatesTableOrderingComposer
+    extends Composer<_$AppDatabase, $SubscriptionListSectionStatesTable> {
+  $$SubscriptionListSectionStatesTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get sectionKey => $composableBuilder(
+    column: $table.sectionKey,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get collapsed => $composableBuilder(
+    column: $table.collapsed,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$AccountsTableOrderingComposer get accountId {
+    final $$AccountsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.accountId,
+      referencedTable: $db.accounts,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$AccountsTableOrderingComposer(
+            $db: $db,
+            $table: $db.accounts,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$SubscriptionListSectionStatesTableAnnotationComposer
+    extends Composer<_$AppDatabase, $SubscriptionListSectionStatesTable> {
+  $$SubscriptionListSectionStatesTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get sectionKey => $composableBuilder(
+    column: $table.sectionKey,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get collapsed =>
+      $composableBuilder(column: $table.collapsed, builder: (column) => column);
+
+  $$AccountsTableAnnotationComposer get accountId {
+    final $$AccountsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.accountId,
+      referencedTable: $db.accounts,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$AccountsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.accounts,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$SubscriptionListSectionStatesTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $SubscriptionListSectionStatesTable,
+          SubscriptionListSectionState,
+          $$SubscriptionListSectionStatesTableFilterComposer,
+          $$SubscriptionListSectionStatesTableOrderingComposer,
+          $$SubscriptionListSectionStatesTableAnnotationComposer,
+          $$SubscriptionListSectionStatesTableCreateCompanionBuilder,
+          $$SubscriptionListSectionStatesTableUpdateCompanionBuilder,
+          (
+            SubscriptionListSectionState,
+            $$SubscriptionListSectionStatesTableReferences,
+          ),
+          SubscriptionListSectionState,
+          PrefetchHooks Function({bool accountId})
+        > {
+  $$SubscriptionListSectionStatesTableTableManager(
+    _$AppDatabase db,
+    $SubscriptionListSectionStatesTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$SubscriptionListSectionStatesTableFilterComposer(
+                $db: db,
+                $table: table,
+              ),
+          createOrderingComposer: () =>
+              $$SubscriptionListSectionStatesTableOrderingComposer(
+                $db: db,
+                $table: table,
+              ),
+          createComputedFieldComposer: () =>
+              $$SubscriptionListSectionStatesTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<int> accountId = const Value.absent(),
+                Value<String> sectionKey = const Value.absent(),
+                Value<bool> collapsed = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => SubscriptionListSectionStatesCompanion(
+                accountId: accountId,
+                sectionKey: sectionKey,
+                collapsed: collapsed,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required int accountId,
+                required String sectionKey,
+                required bool collapsed,
+                Value<int> rowid = const Value.absent(),
+              }) => SubscriptionListSectionStatesCompanion.insert(
+                accountId: accountId,
+                sectionKey: sectionKey,
+                collapsed: collapsed,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<
+                    $SubscriptionListSectionStatesTable,
+                    SubscriptionListSectionState
+                  >(table),
+                  $$SubscriptionListSectionStatesTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: ({accountId = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins:
+                  <
+                    T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic
+                    >
+                  >(state) {
+                    if (accountId) {
+                      state = state.withJoin(
+                        currentTable: table,
+                        currentColumn: table.accountId,
+                        referencedTable:
+                            $$SubscriptionListSectionStatesTableReferences
+                                ._accountIdTable(db),
+                        referencedColumn:
+                            $$SubscriptionListSectionStatesTableReferences
+                                ._accountIdTable(db)
+                                .id,
+                      ) as T;
+                    }
+
+                    return state;
+                  },
+              getPrefetchedDataCallback: (items) async {
+                return [];
+              },
+            );
+          },
+        ),
+      );
+}
+
+typedef $$SubscriptionListSectionStatesTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $SubscriptionListSectionStatesTable,
+      SubscriptionListSectionState,
+      $$SubscriptionListSectionStatesTableFilterComposer,
+      $$SubscriptionListSectionStatesTableOrderingComposer,
+      $$SubscriptionListSectionStatesTableAnnotationComposer,
+      $$SubscriptionListSectionStatesTableCreateCompanionBuilder,
+      $$SubscriptionListSectionStatesTableUpdateCompanionBuilder,
+      (
+        SubscriptionListSectionState,
+        $$SubscriptionListSectionStatesTableReferences,
+      ),
+      SubscriptionListSectionState,
+      PrefetchHooks Function({bool accountId})
+    >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -3478,4 +4223,10 @@ class $AppDatabaseManager {
       $$AccountsTableTableManager(_db, _db.accounts);
   $$PushKeysTableTableManager get pushKeys =>
       $$PushKeysTableTableManager(_db, _db.pushKeys);
+  $$SubscriptionListSectionStatesTableTableManager
+  get subscriptionListSectionStates =>
+      $$SubscriptionListSectionStatesTableTableManager(
+        _db,
+        _db.subscriptionListSectionStates,
+      );
 }
