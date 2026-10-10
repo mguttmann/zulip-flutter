@@ -1,5 +1,9 @@
+import 'package:flutter/foundation.dart';
+
 import '../api/model/model.dart';
+import '../log.dart';
 import 'channel.dart';
+import 'database.dart';
 import 'store.dart';
 
 /// Under [DemoteInactiveStreamsSetting.automatic],
@@ -111,4 +115,105 @@ UiChannelFolder _uiChannelFolder(PerAccountStore store, Subscription subscriptio
     }
   }
   return result;
+}
+
+/// The key identifying [folder]'s section in [SubscriptionListSectionStates].
+///
+/// These keys are stored in the database, so they must not change.
+String subscriptionListSectionKey(UiChannelFolder folder) => switch (folder) {
+  UiChannelFolderPseudoPinned()         => 'pinned',
+  UiChannelFolderPseudoOther()          => 'other',
+  UiChannelFolderRealmFolder(:final id) => 'folder:$id',
+};
+
+/// The user's choices to collapse or expand sections of the subscription list,
+/// for all accounts.
+///
+/// For the choices on one account, see [perAccount].
+class GlobalSubscriptionListSectionStore {
+  GlobalSubscriptionListSectionStore({
+    required this._backend,
+    required Iterable<SubscriptionListSectionState> data,
+  }) {
+    for (final row in data) {
+      (_data[row.accountId] ??= {})[row.sectionKey] = row.collapsed;
+    }
+  }
+
+  final GlobalStoreBackend _backend;
+
+  /// The stored choices, by account ID and then by section key,
+  /// for accounts that don't yet have a [SubscriptionListSectionStore].
+  final Map<int, Map<String, bool>> _data = {};
+
+  /// The existing [SubscriptionListSectionStore]s, keyed by account ID.
+  final Map<int, SubscriptionListSectionStore> _perAccount = {};
+
+  /// The accounts passed to [removeAccount].
+  final Set<int> _removedAccountIds = {};
+
+  /// The [SubscriptionListSectionStore] for the given account.
+  ///
+  /// The account must not have been removed; see [removeAccount].
+  SubscriptionListSectionStore perAccount(int accountId) {
+    assert(!_removedAccountIds.contains(accountId));
+    return _perAccount[accountId] ??= SubscriptionListSectionStore._(
+      backend: _backend, accountId: accountId,
+      data: _data.remove(accountId) ?? {});
+  }
+
+  /// Remove the given account from this store's data,
+  /// and dispose its [SubscriptionListSectionStore].
+  ///
+  /// This should be called after the account has already been removed
+  /// from the underlying data store.
+  void removeAccount(int accountId) {
+    // The rows should be already gone from the database, because we have
+    // cascading deletes on the foreign key at
+    // [SubscriptionListSectionStates.accountId].
+    _data.remove(accountId);
+    _perAccount.remove(accountId)?.dispose();
+    _removedAccountIds.add(accountId);
+  }
+}
+
+/// The user's choices to collapse or expand sections of the subscription list,
+/// on one account.
+///
+/// This substore is accessed through [PerAccountStoreBase.subscriptionListSections].
+/// It lives as long as the account does in [GlobalStore],
+/// so its data persists when a new [PerAccountStore] replaces an old one.
+class SubscriptionListSectionStore extends ChangeNotifier {
+  SubscriptionListSectionStore._({
+    required this._backend,
+    required this.accountId,
+    required this._data,
+  });
+
+  final GlobalStoreBackend _backend;
+  final int accountId;
+  final Map<String, bool> _data;
+
+  /// Whether the user chose to collapse the section for [folder],
+  /// or null if they haven't chosen.
+  bool? isCollapsed(UiChannelFolder folder) =>
+    _data[subscriptionListSectionKey(folder)];
+
+  /// Save the user's choice to collapse or expand the section for [folder].
+  ///
+  /// This takes effect in [isCollapsed] right away,
+  /// so that a quick second tap sees the result of the first,
+  /// without waiting for the write to the underlying data store.
+  /// If that write fails, the choice still applies until the app restarts,
+  /// and the returned future completes normally.
+  Future<void> setCollapsed(UiChannelFolder folder, bool collapsed) async {
+    final key = subscriptionListSectionKey(folder);
+    _data[key] = collapsed;
+    notifyListeners();
+    try {
+      await _backend.doSetSubscriptionListSectionCollapsed(accountId, key, collapsed);
+    } catch (e) {
+      assert(debugLog('Error saving collapse state of subscription-list section: $e')); // TODO(log)
+    }
+  }
 }

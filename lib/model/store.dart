@@ -38,6 +38,7 @@ import 'server_support.dart';
 import 'channel.dart';
 import 'saved_snippet.dart';
 import 'settings.dart';
+import 'subscription_list.dart';
 import 'topics.dart';
 import 'typing_status.dart';
 import 'unreads.dart';
@@ -86,6 +87,13 @@ abstract class GlobalStoreBackend {
   ///
   /// This should only be called from [GlobalPushKeyStore].
   Future<void> doRemovePushKey(int pushKeyId);
+
+  /// Save the user's choice to collapse or expand a section
+  /// of the subscription list, in the underlying data store.
+  ///
+  /// This should only be called from [SubscriptionListSectionStore].
+  Future<void> doSetSubscriptionListSectionCollapsed(
+    int accountId, String sectionKey, bool collapsed);
 }
 
 /// Store for all the user's data.
@@ -112,11 +120,14 @@ abstract class GlobalStore extends ChangeNotifier {
     required Map<IntGlobalSetting, int> intGlobalSettings,
     required Iterable<Account> accounts,
     required Iterable<PushKey> pushKeys,
+    required Iterable<SubscriptionListSectionState> subscriptionListSectionStates,
   })
     : settings = GlobalSettingsStore(backend: backend,
         data: globalSettings, boolData: boolGlobalSettings, intData: intGlobalSettings),
       pushKeys = GlobalPushKeyStore(backend: backend,
         data: pushKeys),
+      subscriptionListSections = GlobalSubscriptionListSectionStore(
+        backend: backend, data: subscriptionListSectionStates),
       _accounts = Map.fromEntries(accounts.map((a) => MapEntry(a.id, a)));
 
   /// The store for the user's account-independent settings.
@@ -128,6 +139,8 @@ abstract class GlobalStore extends ChangeNotifier {
   final GlobalSettingsStore settings;
 
   final GlobalPushKeyStore pushKeys;
+
+  final GlobalSubscriptionListSectionStore subscriptionListSections;
 
   /// Construct a new [ApiConnection], real or fake as appropriate.
   ///
@@ -457,6 +470,7 @@ abstract class GlobalStore extends ChangeNotifier {
     _perAccountStores.remove(accountId)?.dispose();
     unawaited(_perAccountStoresLoading.remove(accountId));
     pushKeys.removeAccount(accountId);
+    subscriptionListSections.removeAccount(accountId);
     notifyListeners();
   }
 
@@ -592,6 +606,9 @@ abstract class PerAccountStoreBase {
   }
 
   PushKeyStore get pushKeys => _globalStore.pushKeys.perAccount(accountId);
+
+  SubscriptionListSectionStore get subscriptionListSections =>
+    _globalStore.subscriptionListSections.perAccount(accountId);
 }
 
 const _tryResolveUrl = tryResolveUrl;
@@ -1147,6 +1164,12 @@ class LiveGlobalStoreBackend implements GlobalStoreBackend {
     ).go();
     assert(rowsAffected == 1);
   }
+
+  @override
+  Future<void> doSetSubscriptionListSectionCollapsed(
+      int accountId, String sectionKey, bool collapsed) async {
+    await _db.setSubscriptionListSectionCollapsed(accountId, sectionKey, collapsed);
+  }
 }
 
 /// A [GlobalStore] that uses a live server and live, persistent local database.
@@ -1164,6 +1187,7 @@ class LiveGlobalStore extends GlobalStore {
     required super.intGlobalSettings,
     required super.accounts,
     required super.pushKeys,
+    required super.subscriptionListSectionStates,
   }) : super(backend: _backend);
 
   @override
@@ -1200,13 +1224,17 @@ class LiveGlobalStore extends GlobalStore {
       final t5 = stopwatch.elapsed;
       final pushKeys = await db.select(db.pushKeys).get();
       final t6 = stopwatch.elapsed;
+      final subscriptionListSectionStates =
+        await db.select(db.subscriptionListSectionStates).get();
+      final t7 = stopwatch.elapsed;
       if (kProfileMode) {
         String format(Duration d) =>
           "${(d.inMicroseconds / 1000.0).toStringAsFixed(1)}ms";
-        profilePrint("db load time ${format(t5)} total: ${format(t1)} init, "
+        profilePrint("db load time ${format(t7)} total: ${format(t1)} init, "
           "${format(t2 - t1)} settings, ${format(t3 - t2)} bool-settings, "
           "${format(t4 - t3)} int-settings, "
-          "${format(t5 - t4)} accounts, ${format(t6 - t5)} push keys");
+          "${format(t5 - t4)} accounts, ${format(t6 - t5)} push keys, "
+          "${format(t7 - t6)} subscription-list sections");
       }
 
       // Disable OS backups for the database file, see:
@@ -1222,6 +1250,7 @@ class LiveGlobalStore extends GlobalStore {
         intGlobalSettings: intGlobalSettings,
         accounts: accounts,
         pushKeys: pushKeys,
+        subscriptionListSectionStates: subscriptionListSectionStates,
       );
     } catch (_) {
       // A later load may follow, so don't leak this connection and its isolate.

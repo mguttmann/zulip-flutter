@@ -103,6 +103,12 @@ class _TestGlobalStoreBackend implements GlobalStoreBackend {
   Future<void> doRemovePushKey(int pushKeyId) async {
     // Nothing to do.
   }
+
+  @override
+  Future<void> doSetSubscriptionListSectionCollapsed(
+      int accountId, String sectionKey, bool collapsed) async {
+    // Nothing to do.
+  }
 }
 
 mixin _DatabaseMixin on GlobalStore {
@@ -173,11 +179,13 @@ class TestGlobalStore extends GlobalStore with _ApiConnectionsMixin, _DatabaseMi
     Map<IntGlobalSetting, int>? intGlobalSettings,
     required super.accounts,
     Iterable<PushKey>? pushKeys,
+    Iterable<SubscriptionListSectionState>? subscriptionListSectionStates,
   }) : super(backend: _TestGlobalStoreBackend(),
          globalSettings: globalSettings ?? GlobalSettingsData(),
          boolGlobalSettings: boolGlobalSettings ?? {},
          intGlobalSettings: intGlobalSettings ?? {},
          pushKeys: pushKeys ?? [],
+         subscriptionListSectionStates: subscriptionListSectionStates ?? [],
        );
 
   final Map<int, InitialSnapshot> _initialSnapshots = {};
@@ -278,11 +286,13 @@ class UpdateMachineTestGlobalStore extends GlobalStore with _ApiConnectionsMixin
     Map<IntGlobalSetting, int>? intGlobalSettings,
     required super.accounts,
     Iterable<PushKey>? pushKeys,
+    Iterable<SubscriptionListSectionState>? subscriptionListSectionStates,
   }) : super(backend: _TestGlobalStoreBackend(),
          globalSettings: globalSettings ?? GlobalSettingsData(),
          boolGlobalSettings: boolGlobalSettings ?? {},
          intGlobalSettings: intGlobalSettings ?? {},
          pushKeys: pushKeys ?? [],
+         subscriptionListSectionStates: subscriptionListSectionStates ?? [],
        );
 
   // [doLoadPerAccount] depends on the cache to prepare the API responses.
