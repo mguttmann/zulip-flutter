@@ -339,6 +339,7 @@ enum UserSettingName {
   starredMessageCounts,
   displayEmojiReactionUsers,
   emojiset,
+  demoteInactiveStreams,
   webInboxShowChannelFolders,
   webLeftSidebarShowChannelFolders,
   presenceEnabled,
@@ -406,6 +407,31 @@ enum Emojiset {
     .map((key, value) => MapEntry(value, key));
 
   String toJson() => _$EmojisetEnumMap[this]!;
+}
+
+/// As in [UserSettings.demoteInactiveStreams].
+@JsonEnum(valueField: 'apiValue')
+enum DemoteInactiveStreamsSetting {
+  automatic(apiValue: 1),
+  always(apiValue: 2),
+  never(apiValue: 3),
+  unknown(apiValue: null);
+
+  const DemoteInactiveStreamsSetting({required this.apiValue});
+
+  final int? apiValue;
+
+  int? toJson() => apiValue;
+
+  /// Get a [DemoteInactiveStreamsSetting] from an API value,
+  /// or [unknown] if the value is unrecognized.
+  static DemoteInactiveStreamsSetting fromApiValue(int value) =>
+    _byApiValue[value] ?? unknown;
+
+  static final _byApiValue = {
+    for (final setting in values)
+      if (setting.apiValue != null) setting.apiValue!: setting,
+  };
 }
 
 @JsonSerializable(fieldRename: FieldRename.snake)

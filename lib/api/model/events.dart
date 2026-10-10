@@ -268,6 +268,8 @@ class UserSettingsUpdateEvent extends Event {
         return value as bool;
       case UserSettingName.emojiset:
         return Emojiset.fromRawString(value as String);
+      case UserSettingName.demoteInactiveStreams:
+        return DemoteInactiveStreamsSetting.fromApiValue(value as int);
       case UserSettingName.webInboxShowChannelFolders:
       case UserSettingName.webLeftSidebarShowChannelFolders:
       case UserSettingName.presenceEnabled:

@@ -73,6 +73,12 @@ void main() {
     }
   });
 
+  test('UserSettings.demoteInactiveStreams handles unknown values', () {
+    final json = eg.userSettings().toJson()..['demote_inactive_streams'] = 42;
+    final settings = UserSettings.fromJson(json);
+    check(settings.demoteInactiveStreams).equals(DemoteInactiveStreamsSetting.unknown);
+  });
+
   test('UserSettings.webLeftSidebarShowChannelFolders defaults to false', () {
     // TODO(server-11) remove this test
     final json = eg.userSettings(webLeftSidebarShowChannelFolders: true).toJson()

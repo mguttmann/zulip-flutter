@@ -28,6 +28,9 @@ void main() {
           case UserSettingName.emojiset:
             newSettings[name] = Emojiset.googleBlob;
             expectedBodyFields['emojiset'] = 'google-blob';
+          case UserSettingName.demoteInactiveStreams:
+            newSettings[name] = DemoteInactiveStreamsSetting.always;
+            expectedBodyFields['demote_inactive_streams'] = '2';
           case UserSettingName.webInboxShowChannelFolders:
             newSettings[name] = false;
             expectedBodyFields['web_inbox_show_channel_folders'] = 'false';

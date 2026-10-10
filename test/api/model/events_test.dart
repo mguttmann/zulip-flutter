@@ -30,6 +30,26 @@ void main() {
     ).isEmpty();
   });
 
+  group('user_settings/update', () {
+    final baseJson = {'id': 1, 'type': 'user_settings', 'op': 'update'};
+
+    test('demote_inactive_streams', () {
+      check(Event.fromJson({ ...baseJson,
+        'property': 'demote_inactive_streams', 'value': 3,
+      })).isA<UserSettingsUpdateEvent>()
+        ..property.equals(UserSettingName.demoteInactiveStreams)
+        ..value.equals(DemoteInactiveStreamsSetting.never);
+    });
+
+    test('demote_inactive_streams, unknown value', () {
+      check(Event.fromJson({ ...baseJson,
+        'property': 'demote_inactive_streams', 'value': 42,
+      })).isA<UserSettingsUpdateEvent>()
+        ..property.equals(UserSettingName.demoteInactiveStreams)
+        ..value.equals(DemoteInactiveStreamsSetting.unknown);
+    });
+  });
+
   group('device/update', () {
     final baseJson = {'id': 1, 'type': 'device', 'op': 'update', 'device_id': 3 };
 

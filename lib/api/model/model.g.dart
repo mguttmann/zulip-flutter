@@ -569,6 +569,7 @@ const _$UserSettingNameEnumMap = {
   UserSettingName.starredMessageCounts: 'starred_message_counts',
   UserSettingName.displayEmojiReactionUsers: 'display_emoji_reaction_users',
   UserSettingName.emojiset: 'emojiset',
+  UserSettingName.demoteInactiveStreams: 'demote_inactive_streams',
   UserSettingName.webInboxShowChannelFolders: 'web_inbox_show_channel_folders',
   UserSettingName.webLeftSidebarShowChannelFolders:
       'web_left_sidebar_show_channel_folders',

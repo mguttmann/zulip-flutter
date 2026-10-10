@@ -387,6 +387,8 @@ class UserSettings {
   bool displayEmojiReactionUsers;
   @JsonKey(unknownEnumValue: Emojiset.unknown)
   Emojiset emojiset;
+  @JsonKey(unknownEnumValue: DemoteInactiveStreamsSetting.unknown)
+  DemoteInactiveStreamsSetting demoteInactiveStreams;
   @JsonKey(defaultValue: true)
   bool webInboxShowChannelFolders; // TODO(server-12) remove default value
   @JsonKey(defaultValue: false)
@@ -404,6 +406,7 @@ class UserSettings {
     required this.starredMessageCounts,
     required this.displayEmojiReactionUsers,
     required this.emojiset,
+    required this.demoteInactiveStreams,
     required this.webInboxShowChannelFolders,
     required this.webLeftSidebarShowChannelFolders,
     required this.presenceEnabled,

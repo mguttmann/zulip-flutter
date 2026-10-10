@@ -919,6 +919,8 @@ class PerAccountStore extends PerAccountStoreBase with
             userSettings.displayEmojiReactionUsers        = event.value as bool;
           case UserSettingName.emojiset:
             userSettings.emojiset                         = event.value as Emojiset;
+          case UserSettingName.demoteInactiveStreams:
+            userSettings.demoteInactiveStreams            = event.value as DemoteInactiveStreamsSetting;
           case UserSettingName.webInboxShowChannelFolders:
             userSettings.webInboxShowChannelFolders       = event.value as bool;
           case UserSettingName.webLeftSidebarShowChannelFolders:

@@ -332,6 +332,11 @@ UserSettings _$UserSettingsFromJson(Map<String, dynamic> json) => UserSettings(
     json['emojiset'],
     unknownValue: Emojiset.unknown,
   ),
+  demoteInactiveStreams: $enumDecode(
+    _$DemoteInactiveStreamsSettingEnumMap,
+    json['demote_inactive_streams'],
+    unknownValue: DemoteInactiveStreamsSetting.unknown,
+  ),
   webInboxShowChannelFolders:
       json['web_inbox_show_channel_folders'] as bool? ?? true,
   webLeftSidebarShowChannelFolders:
@@ -344,6 +349,7 @@ const _$UserSettingsFieldMap = <String, String>{
   'starredMessageCounts': 'starred_message_counts',
   'displayEmojiReactionUsers': 'display_emoji_reaction_users',
   'emojiset': 'emojiset',
+  'demoteInactiveStreams': 'demote_inactive_streams',
   'webInboxShowChannelFolders': 'web_inbox_show_channel_folders',
   'webLeftSidebarShowChannelFolders': 'web_left_sidebar_show_channel_folders',
   'presenceEnabled': 'presence_enabled',
@@ -357,6 +363,7 @@ Map<String, dynamic> _$UserSettingsToJson(UserSettings instance) =>
       'starred_message_counts': instance.starredMessageCounts,
       'display_emoji_reaction_users': instance.displayEmojiReactionUsers,
       'emojiset': instance.emojiset,
+      'demote_inactive_streams': instance.demoteInactiveStreams,
       'web_inbox_show_channel_folders': instance.webInboxShowChannelFolders,
       'web_left_sidebar_show_channel_folders':
           instance.webLeftSidebarShowChannelFolders,
@@ -369,6 +376,13 @@ const _$EmojisetEnumMap = {
   Emojiset.twitter: 'twitter',
   Emojiset.text: 'text',
   Emojiset.unknown: 'unknown',
+};
+
+const _$DemoteInactiveStreamsSettingEnumMap = {
+  DemoteInactiveStreamsSetting.automatic: 1,
+  DemoteInactiveStreamsSetting.always: 2,
+  DemoteInactiveStreamsSetting.never: 3,
+  DemoteInactiveStreamsSetting.unknown: null,
 };
 
 UserTopicItem _$UserTopicItemFromJson(Map<String, dynamic> json) =>

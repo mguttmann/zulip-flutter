@@ -21,6 +21,9 @@ Future<void> updateSettings(ApiConnection connection, {
         value = valueRaw as bool;
       case UserSettingName.emojiset:
         value = RawParameter((valueRaw as Emojiset).toJson());
+      case UserSettingName.demoteInactiveStreams:
+        assert(valueRaw != DemoteInactiveStreamsSetting.unknown);
+        value = (valueRaw as DemoteInactiveStreamsSetting).apiValue;
       case UserSettingName.webInboxShowChannelFolders:
       case UserSettingName.webLeftSidebarShowChannelFolders:
       case UserSettingName.presenceEnabled:
