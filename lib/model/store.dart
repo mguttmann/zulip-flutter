@@ -994,7 +994,7 @@ class PerAccountStore extends PerAccountStoreBase with
       case ChannelFolderEvent():
         assert(debugLog("server event: channel_folder/${event.op}"));
         _channels.handleChannelFolderEvent(event);
-        break;
+        notifyListeners();
 
       case UserStatusEvent():
         assert(debugLog("server event: user_status"));

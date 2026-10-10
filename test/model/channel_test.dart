@@ -237,6 +237,28 @@ void main() {
         check(foldersFromStoreInOrder(store)).deepEquals([folderC, folderB, folderA]);
       });
     });
+
+    test('notify listeners', () async {
+      final folder1 = eg.channelFolder(order: 0);
+      final folder2 = eg.channelFolder(order: 1);
+      final store = eg.store(initialSnapshot: eg.initialSnapshot(
+        channelFolders: [folder1]));
+      int notifiedCount = 0;
+      store.addListener(() => notifiedCount++);
+
+      await store.handleEvent(ChannelFolderAddEvent(
+        id: 1, channelFolder: folder2));
+      check(notifiedCount).equals(1);
+
+      await store.handleEvent(ChannelFolderUpdateEvent(id: 2,
+        channelFolderId: folder1.id,
+        data: eg.channelFolderChange(name: 'new name')));
+      check(notifiedCount).equals(2);
+
+      await store.handleEvent(ChannelFolderReorderEvent(id: 3,
+        order: [folder2.id, folder1.id]));
+      check(notifiedCount).equals(3);
+    });
   });
 
   group('topic visibility', () {
